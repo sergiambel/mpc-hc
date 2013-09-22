@@ -1370,6 +1370,7 @@ BOOL CMPlayerCApp::InitInstance()
         }
     }
 
+    m_s.UpdateSettings(); // update settings
     m_s.LoadSettings(); // read settings
 
     m_AudioRendererDisplayName_CL = _T("");
