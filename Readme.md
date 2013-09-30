@@ -1,3 +1,8 @@
+## This is a Fork version.
+
+In this version we're testing inapp sdk to show recommended content in definded points of user flow.
+
+
 # Media Player Classic - Home Cinema
 
 Media Player Classic - Home Cinema (MPC-HC) is a free and open source (OSS) video
