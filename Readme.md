@@ -1,6 +1,6 @@
 ## This is a Fork version.
 
-In this version we're testing inapp sdk to show recommended content in definded points of user flow.
+In this version we're testing inapp sdk to show recommended content in defined points of user flow.
 
 
 # Media Player Classic - Home Cinema
