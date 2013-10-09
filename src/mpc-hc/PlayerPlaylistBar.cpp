@@ -31,7 +31,6 @@
 #include "PlayerPlaylistBar.h"
 #include "SettingsDefines.h"
 #include "InternalFiltersConfig.h"
-#include "WinAPIUtils.h"
 
 
 IMPLEMENT_DYNAMIC(CPlayerPlaylistBar, CPlayerBar)
@@ -228,7 +227,7 @@ static bool SearchFiles(CString mask, CAtlList<CString>& sl)
             FindClose(h);
 
             if (sl.IsEmpty() && mask.Find(_T(":\\")) == 1) {
-                if (OpticalDisk_VideoCD == GetOpticalDiskType(mask[0], sl)) {
+                if (CDROM_VideoCD == GetCDROMType(mask[0], sl)) {
                     sl.RemoveAll(); // need to open VideoCD as disk
                 }
             }
@@ -826,28 +825,6 @@ bool CPlayerPlaylistBar::SelectFileInPlaylist(LPCTSTR filename)
     return false;
 }
 
-bool CPlayerPlaylistBar::DeleteFileInPlaylist(POSITION pos, bool recycle)
-{
-    CMainFrame* pMainFrm = (CMainFrame*)AfxGetMainWnd();
-
-    // release the file handle by changing to the next item or stopping playback
-    if (pos == m_pl.GetPos()) {
-        if (m_pl.GetCount() > 1) {
-            pMainFrm->OnNavigateSkipFile(ID_NAVIGATE_SKIPFORWARDFILE);
-        } else {
-            pMainFrm->CloseMedia();
-        }
-    }
-
-    if (SUCCEEDED(FileDelete(m_pl.GetAt(pos).m_fns.GetHead(), pMainFrm->m_hWnd, recycle))) {
-        m_list.DeleteItem(FindItem(pos));
-        m_pl.RemoveAt(pos);
-        SavePlaylist();
-        return true;
-    }
-    return false;
-}
-
 void CPlayerPlaylistBar::LoadPlaylist(LPCTSTR filename)
 {
     CString base;
@@ -976,20 +953,15 @@ void CPlayerPlaylistBar::OnNMDblclkList(NMHDR* pNMHDR, LRESULT* pResult)
     LPNMLISTVIEW lpnmlv = (LPNMLISTVIEW)pNMHDR;
 
     if (lpnmlv->iItem >= 0 && lpnmlv->iSubItem >= 0) {
-        CMainFrame* pMainFrame = static_cast<CMainFrame*>(AfxGetMainWnd());
-
-        POSITION pos = FindPos(lpnmlv->iItem);
-        // If the file is already playing, don't try to restore a previously saved position
-        if (pMainFrame->GetPlaybackMode() == PM_FILE && pos == m_pl.GetPos()) {
-            const CPlaylistItem& pli = m_pl.GetAt(pos);
-
-            CAppSettings& s = AfxGetAppSettings();
-            s.filePositions.RemoveEntry(pli.m_fns.GetHead());
-        } else {
-            m_pl.SetPos(pos);
+        CAppSettings& s = AfxGetAppSettings();
+        FILE_POSITION* filePosition = s.filePositions.GetLatestEntry();
+        if (filePosition)   {
+            filePosition->llPosition = 0;
         }
+
+        m_pl.SetPos(FindPos(lpnmlv->iItem));
         m_list.Invalidate();
-        pMainFrame->OpenCurPlaylistItem();
+        ((CMainFrame*)AfxGetMainWnd())->OpenCurPlaylistItem();
     }
 
     AfxGetMainWnd()->SetFocus();
@@ -1347,8 +1319,8 @@ void CPlayerPlaylistBar::OnContextMenu(CWnd* /*pWnd*/, CPoint p)
     m_list.SubItemHitTest(&lvhti);
 
     POSITION pos = FindPos(lvhti.iItem);
-    bool bOnItem = !!(lvhti.flags & LVHT_ONITEM);
-    bool bIsLocalFile = bOnItem ? FileExists(m_pl.GetAt(pos).m_fns.GetHead()) : false;
+    //bool fSelected = (pos == m_pl.GetPos());
+    bool fOnItem = !!(lvhti.flags & LVHT_ONITEM);
 
     CMenu m;
     m.CreatePopupMenu();
@@ -1359,8 +1331,6 @@ void CPlayerPlaylistBar::OnContextMenu(CWnd* /*pWnd*/, CPoint p)
         M_REMOVE,
         M_CLEAR,
         M_CLIPBOARD,
-        M_SHOWFOLDER,
-        M_RECYCLE,
         M_SAVEAS,
         M_SORTBYNAME,
         M_SORTBYPATH,
@@ -1372,17 +1342,15 @@ void CPlayerPlaylistBar::OnContextMenu(CWnd* /*pWnd*/, CPoint p)
 
     CAppSettings& s = AfxGetAppSettings();
 
-    m.AppendMenu(MF_STRING | (!bOnItem ? (MF_DISABLED | MF_GRAYED) : MF_ENABLED), M_OPEN, ResStr(IDS_PLAYLIST_OPEN));
+    m.AppendMenu(MF_STRING | (!fOnItem ? (MF_DISABLED | MF_GRAYED) : MF_ENABLED), M_OPEN, ResStr(IDS_PLAYLIST_OPEN));
     if (((CMainFrame*)AfxGetMainWnd())->GetPlaybackMode() == PM_CAPTURE) {
         m.AppendMenu(MF_STRING | MF_ENABLED, M_ADD, ResStr(IDS_PLAYLIST_ADD));
     }
-    m.AppendMenu(MF_STRING | (!bOnItem ? (MF_DISABLED | MF_GRAYED) : MF_ENABLED), M_REMOVE, ResStr(IDS_PLAYLIST_REMOVE));
+    m.AppendMenu(MF_STRING | (/*fSelected||*/!fOnItem ? (MF_DISABLED | MF_GRAYED) : MF_ENABLED), M_REMOVE, ResStr(IDS_PLAYLIST_REMOVE));
     m.AppendMenu(MF_SEPARATOR);
     m.AppendMenu(MF_STRING | (!m_pl.GetCount() ? (MF_DISABLED | MF_GRAYED) : MF_ENABLED), M_CLEAR, ResStr(IDS_PLAYLIST_CLEAR));
     m.AppendMenu(MF_SEPARATOR);
-    m.AppendMenu(MF_STRING | (!bOnItem ? (MF_DISABLED | MF_GRAYED) : MF_ENABLED), M_CLIPBOARD, ResStr(IDS_PLAYLIST_COPYTOCLIPBOARD));
-    m.AppendMenu(MF_STRING | ((!bOnItem || !bIsLocalFile) ? (MF_DISABLED | MF_GRAYED) : MF_ENABLED), M_SHOWFOLDER, ResStr(IDS_PLAYLIST_SHOWFOLDER));
-    m.AppendMenu(MF_STRING | ((!bOnItem || !bIsLocalFile) ? (MF_DISABLED | MF_GRAYED) : MF_ENABLED), M_RECYCLE, ResStr(IDS_FILE_RECYCLE));
+    m.AppendMenu(MF_STRING | (!fOnItem ? (MF_DISABLED | MF_GRAYED) : MF_ENABLED), M_CLIPBOARD, ResStr(IDS_PLAYLIST_COPYTOCLIPBOARD));
     m.AppendMenu(MF_STRING | (!m_pl.GetCount() ? (MF_DISABLED | MF_GRAYED) : MF_ENABLED), M_SAVEAS, ResStr(IDS_PLAYLIST_SAVEAS));
     m.AppendMenu(MF_SEPARATOR);
     m.AppendMenu(MF_STRING | (!m_pl.GetCount() ? (MF_DISABLED | MF_GRAYED) : MF_ENABLED), M_SORTBYNAME, ResStr(IDS_PLAYLIST_SORTBYLABEL));
@@ -1413,9 +1381,6 @@ void CPlayerPlaylistBar::OnContextMenu(CWnd* /*pWnd*/, CPoint p)
             }
             m_list.DeleteItem(lvhti.iItem);
             SavePlaylist();
-            break;
-        case M_RECYCLE:
-            DeleteFileInPlaylist(pos);
             break;
         case M_CLEAR:
             if (Empty()) {
@@ -1462,9 +1427,6 @@ void CPlayerPlaylistBar::OnContextMenu(CWnd* /*pWnd*/, CPoint p)
                 }
                 CloseClipboard();
             }
-            break;
-        case M_SHOWFOLDER:
-            ExploreToFile(m_pl.GetAt(pos).m_fns.GetHead());
             break;
         case M_SAVEAS: {
             CSaveTextFileDialog fd(

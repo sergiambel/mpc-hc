@@ -250,6 +250,7 @@ void File::Write(const void *Data,size_t Size)
 {
   if (Size==0)
     return;
+#ifndef _WIN_CE
   if (HandleType!=FILE_HANDLENORMAL)
     switch(HandleType)
     {
@@ -268,6 +269,7 @@ void File::Write(const void *Data,size_t Size)
 #endif
         break;
     }
+#endif
   while (1)
   {
     bool Success=false;
@@ -362,6 +364,7 @@ int File::DirectRead(void *Data,size_t Size)
   const size_t MaxDeviceRead=20000;
   const size_t MaxLockedRead=32768;
 #endif
+#ifndef _WIN_CE
   if (HandleType==FILE_HANDLESTD)
   {
 #ifdef _WIN_ALL
@@ -372,6 +375,7 @@ int File::DirectRead(void *Data,size_t Size)
     hFile=stdin;
 #endif
   }
+#endif
 #ifdef _WIN_ALL
   DWORD Read;
   if (!ReadFile(hFile,Data,(DWORD)Size,&Read,NULL))

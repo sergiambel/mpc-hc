@@ -47,12 +47,7 @@ CPPageAudioSwitcher::CPPageAudioSwitcher(IFilterGraph* pFG)
     , m_AudioBoostPos(0)
     , m_nAudioMaxNormFactor(400)
 {
-    CComQIPtr<IAudioSwitcherFilter> pASF = FindFilter(__uuidof(CAudioSwitcherFilter), pFG);
-
-    if (pASF) {
-        pASF->GetInputSpeakerConfig(&m_dwChannelMask);
-        m_nChannels = pASF->GetNumberOfInputChannels();
-    }
+    m_pASF = FindFilter(__uuidof(CAudioSwitcherFilter), pFG);
 }
 
 CPPageAudioSwitcher::~CPPageAudioSwitcher()
@@ -94,12 +89,11 @@ BEGIN_MESSAGE_MAP(CPPageAudioSwitcher, CPPageBase)
     ON_UPDATE_COMMAND_UI(IDC_STATIC4, OnUpdateNormalize)
     ON_UPDATE_COMMAND_UI(IDC_STATIC5, OnUpdateNormalize)
     ON_UPDATE_COMMAND_UI(IDC_EDIT3, OnUpdateNormalize)
-    ON_UPDATE_COMMAND_UI(IDC_SPIN3, OnUpdateNormalize)
     ON_UPDATE_COMMAND_UI(IDC_CHECK6, OnUpdateNormalize)
-    ON_UPDATE_COMMAND_UI(IDC_EDIT2, OnUpdateTimeShift)
-    ON_UPDATE_COMMAND_UI(IDC_SPIN2, OnUpdateTimeShift)
     ON_UPDATE_COMMAND_UI(IDC_CHECK3, OnUpdateAudioSwitcher)
     ON_UPDATE_COMMAND_UI(IDC_CHECK4, OnUpdateAudioSwitcher)
+    ON_UPDATE_COMMAND_UI(IDC_EDIT2, OnUpdateAudioSwitcher)
+    ON_UPDATE_COMMAND_UI(IDC_SPIN2, OnUpdateAudioSwitcher)
     ON_UPDATE_COMMAND_UI(IDC_CHECK1, OnUpdateAudioSwitcher)
     ON_UPDATE_COMMAND_UI(IDC_EDIT1, OnUpdateChannelMapping)
     ON_UPDATE_COMMAND_UI(IDC_SPIN1, OnUpdateChannelMapping)
@@ -135,8 +129,16 @@ BOOL CPPageAudioSwitcher::OnInitDialog()
     m_fCustomChannelMapping = s.fCustomChannelMapping;
     memcpy(m_pSpeakerToChannelMap, s.pSpeakerToChannelMap, sizeof(s.pSpeakerToChannelMap));
 
+    if (m_pASF) {
+        m_pASF->GetInputSpeakerConfig(&m_dwChannelMask);
+    }
+
     m_nChannels = s.nSpeakerChannels;
     m_nChannelsSpinCtrl.SetRange(1, AS_MAX_CHANNELS);
+
+    if (m_pASF) {
+        m_nChannels = m_pASF->GetNumberOfInputChannels();
+    }
 
     m_list.InsertColumn(0, _T(""), LVCFMT_LEFT, 100);
     m_list.InsertItem(0, _T(""));
@@ -199,9 +201,15 @@ BOOL CPPageAudioSwitcher::OnApply()
     s.iAudioTimeShift = m_tAudioTimeShift;
     s.fCustomChannelMapping = !!m_fCustomChannelMapping;
     memcpy(s.pSpeakerToChannelMap, m_pSpeakerToChannelMap, sizeof(m_pSpeakerToChannelMap));
-    s.nSpeakerChannels = m_nChannels;
 
-    AfxGetMainFrame()->UpdateControlState(CMainFrame::UPDATE_AUDIO_SWITCHER);
+    if (m_pASF) {
+        m_pASF->SetSpeakerConfig(s.fCustomChannelMapping, s.pSpeakerToChannelMap);
+        m_pASF->EnableDownSamplingTo441(s.fDownSampleTo441);
+        m_pASF->SetAudioTimeShift(s.fAudioTimeShift ? 10000i64 * s.iAudioTimeShift : 0);
+        m_pASF->SetNormalizeBoost2(s.fAudioNormalize, s.nAudioMaxNormFactor, s.fAudioNormalizeRecover, s.nAudioBoost);
+    }
+
+    s.nSpeakerChannels = m_nChannels;
 
     return __super::OnApply();
 }
@@ -331,13 +339,6 @@ void CPPageAudioSwitcher::OnUpdateNormalize(CCmdUI* pCmdUI)
     //  UpdateData();
     pCmdUI->Enable(IsDlgButtonChecked(IDC_CHECK2)/*m_fEnableAudioSwitcher*/
                    && IsDlgButtonChecked(IDC_CHECK5)/*m_fNormalize*/);
-}
-
-void CPPageAudioSwitcher::OnUpdateTimeShift(CCmdUI* pCmdUI)
-{
-    //  UpdateData();
-    pCmdUI->Enable(IsDlgButtonChecked(IDC_CHECK2)/*m_fEnableAudioSwitcher*/
-                   && IsDlgButtonChecked(IDC_CHECK4)/*m_fAudioTimeShift)*/);
 }
 
 void CPPageAudioSwitcher::OnUpdateChannelMapping(CCmdUI* pCmdUI)

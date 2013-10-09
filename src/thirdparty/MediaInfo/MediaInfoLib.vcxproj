@@ -63,11 +63,12 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
+    <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;ThirdParty\base64;ThirdParty\tinyxml2;..\ZenLib;..\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_LIB;CURL_STATICLIB;MEDIAINFO_ADVANCED_NO;MEDIAINFO_ARCHIVE_NO;MEDIAINFO_DEMUX_NO;MEDIAINFO_DVDIF_ANALYZE_NO;MEDIAINFO_EVENTS_NO;MEDIAINFO_LIBCURL_NO;MEDIAINFO_LIBMMS_NO;MEDIAINFO_MD5_NO;MEDIAINFO_MINIMAL_YES;MEDIAINFO_MPEGTS_DUPLICATE_NO;MEDIAINFO_N19_NO;MEDIAINFO_OTHERTEXT_NO;MEDIAINFO_TRACE_NO;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_LIB;CURL_STATICLIB;MEDIAINFO_ADVANCED_NO;MEDIAINFO_ARCHIVE_NO;MEDIAINFO_DEMUX_NO;MEDIAINFO_DVDIF_ANALYZE_NO;MEDIAINFO_EVENTS_NO;MEDIAINFO_IMAGE_NO;MEDIAINFO_LIBCURL_NO;MEDIAINFO_LIBMMS_NO;MEDIAINFO_MD5_NO;MEDIAINFO_MINIMAL_YES;MEDIAINFO_MPEGTS_DUPLICATE_NO;MEDIAINFO_N19_NO;MEDIAINFO_OTHERTEXT_NO;MEDIAINFO_TRACE_NO;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <PrecompiledHeaderFile>MediaInfo/PreComp.h</PrecompiledHeaderFile>
       <EnablePREfast>false</EnablePREfast>
@@ -76,7 +77,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;ThirdParty\base64;ThirdParty\tinyxml2;..\ZenLib;..\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_LIB;CURL_STATICLIB;MEDIAINFO_ADVANCED_NO;MEDIAINFO_ARCHIVE_NO;MEDIAINFO_DEMUX_NO;MEDIAINFO_DVDIF_ANALYZE_NO;MEDIAINFO_EVENTS_NO;MEDIAINFO_LIBCURL_NO;MEDIAINFO_LIBMMS_NO;MEDIAINFO_MD5_NO;MEDIAINFO_MINIMAL_YES;MEDIAINFO_MPEGTS_DUPLICATE_NO;MEDIAINFO_N19_NO;MEDIAINFO_OTHERTEXT_NO;MEDIAINFO_TRACE_NO;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_LIB;CURL_STATICLIB;MEDIAINFO_ADVANCED_NO;MEDIAINFO_ARCHIVE_NO;MEDIAINFO_DEMUX_NO;MEDIAINFO_DVDIF_ANALYZE_NO;MEDIAINFO_EVENTS_NO;MEDIAINFO_IMAGE_NO;MEDIAINFO_LIBCURL_NO;MEDIAINFO_LIBMMS_NO;MEDIAINFO_MD5_NO;MEDIAINFO_MINIMAL_YES;MEDIAINFO_MPEGTS_DUPLICATE_NO;MEDIAINFO_N19_NO;MEDIAINFO_OTHERTEXT_NO;MEDIAINFO_TRACE_NO;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <PrecompiledHeaderFile>MediaInfo/PreComp.h</PrecompiledHeaderFile>
       <EnablePREfast>false</EnablePREfast>
@@ -85,7 +86,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;ThirdParty\base64;ThirdParty\tinyxml2;..\ZenLib;..\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_LIB;CURL_STATICLIB;MEDIAINFO_ADVANCED_NO;MEDIAINFO_ARCHIVE_NO;MEDIAINFO_DEMUX_NO;MEDIAINFO_DVDIF_ANALYZE_NO;MEDIAINFO_EVENTS_NO;MEDIAINFO_LIBCURL_NO;MEDIAINFO_LIBMMS_NO;MEDIAINFO_MD5_NO;MEDIAINFO_MINIMAL_YES;MEDIAINFO_MPEGTS_DUPLICATE_NO;MEDIAINFO_N19_NO;MEDIAINFO_OTHERTEXT_NO;MEDIAINFO_TRACE_NO;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_LIB;CURL_STATICLIB;MEDIAINFO_ADVANCED_NO;MEDIAINFO_ARCHIVE_NO;MEDIAINFO_DEMUX_NO;MEDIAINFO_DVDIF_ANALYZE_NO;MEDIAINFO_EVENTS_NO;MEDIAINFO_IMAGE_NO;MEDIAINFO_LIBCURL_NO;MEDIAINFO_LIBMMS_NO;MEDIAINFO_MD5_NO;MEDIAINFO_MINIMAL_YES;MEDIAINFO_MPEGTS_DUPLICATE_NO;MEDIAINFO_N19_NO;MEDIAINFO_OTHERTEXT_NO;MEDIAINFO_TRACE_NO;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <PrecompiledHeaderFile>MediaInfo/PreComp.h</PrecompiledHeaderFile>
       <EnablePREfast>false</EnablePREfast>
@@ -94,7 +95,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;ThirdParty\base64;ThirdParty\tinyxml2;..\ZenLib;..\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_LIB;CURL_STATICLIB;MEDIAINFO_ADVANCED_NO;MEDIAINFO_ARCHIVE_NO;MEDIAINFO_DEMUX_NO;MEDIAINFO_DVDIF_ANALYZE_NO;MEDIAINFO_EVENTS_NO;MEDIAINFO_LIBCURL_NO;MEDIAINFO_LIBMMS_NO;MEDIAINFO_MD5_NO;MEDIAINFO_MINIMAL_YES;MEDIAINFO_MPEGTS_DUPLICATE_NO;MEDIAINFO_N19_NO;MEDIAINFO_OTHERTEXT_NO;MEDIAINFO_TRACE_NO;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_LIB;CURL_STATICLIB;MEDIAINFO_ADVANCED_NO;MEDIAINFO_ARCHIVE_NO;MEDIAINFO_DEMUX_NO;MEDIAINFO_DVDIF_ANALYZE_NO;MEDIAINFO_EVENTS_NO;MEDIAINFO_IMAGE_NO;MEDIAINFO_LIBCURL_NO;MEDIAINFO_LIBMMS_NO;MEDIAINFO_MD5_NO;MEDIAINFO_MINIMAL_YES;MEDIAINFO_MPEGTS_DUPLICATE_NO;MEDIAINFO_N19_NO;MEDIAINFO_OTHERTEXT_NO;MEDIAINFO_TRACE_NO;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <PrecompiledHeaderFile>MediaInfo/PreComp.h</PrecompiledHeaderFile>
       <EnablePREfast>false</EnablePREfast>
@@ -268,7 +269,6 @@
     <ClInclude Include="MediaInfo\Video\File_Aic.h" />
     <ClInclude Include="MediaInfo\Video\File_Avc.h" />
     <ClInclude Include="MediaInfo\Video\File_AvsV.h" />
-    <ClInclude Include="MediaInfo\Video\File_Canopus.h" />
     <ClInclude Include="MediaInfo\Video\File_Dirac.h" />
     <ClInclude Include="MediaInfo\Video\File_Flic.h" />
     <ClInclude Include="MediaInfo\Video\File_Fraps.h" />
@@ -456,7 +456,6 @@
     <ClCompile Include="MediaInfo\Video\File_Avc.cpp" />
     <ClCompile Include="MediaInfo\Video\File_Avc_Duplicate.cpp" />
     <ClCompile Include="MediaInfo\Video\File_AvsV.cpp" />
-    <ClCompile Include="MediaInfo\Video\File_Canopus.cpp" />
     <ClCompile Include="MediaInfo\Video\File_Dirac.cpp" />
     <ClCompile Include="MediaInfo\Video\File_Flic.cpp" />
     <ClCompile Include="MediaInfo\Video\File_Fraps.cpp" />

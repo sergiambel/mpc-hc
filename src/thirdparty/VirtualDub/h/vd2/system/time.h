@@ -105,14 +105,12 @@ public:
 	~VDLazyTimer();
 
 	void SetOneShot(IVDTimerCallback *pCB, uint32 delay);
-	void SetPeriodic(IVDTimerCallback *pCB, uint32 delay);
 	void Stop();
 
 protected:
 	void StaticTimeCallback(VDZHWND hwnd, VDZUINT msg, VDZUINT_PTR id, VDZDWORD time);
 
 	uint32				mTimerId;
-	bool				mbPeriodic;
 	VDFunctionThunk		*mpThunk;
 	IVDTimerCallback	*mpCB;
 };

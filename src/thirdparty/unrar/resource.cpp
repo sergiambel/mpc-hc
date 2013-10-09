@@ -16,3 +16,4 @@ const wchar *St(MSGID StringId)
 }
 #endif
 
+

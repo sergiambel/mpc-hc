@@ -1,5 +1,5 @@
 /*
- * (C) 2009-2013 see Authors.txt
+ * (C) 2009-2012 see Authors.txt
  *
  * This file is part of MPC-HC.
  *
@@ -22,11 +22,16 @@
 
 #include "../../../DSUtil/SharedInclude.h"
 
-#define WIN32_LEAN_AND_MEAN                 // Exclude rarely-used stuff from Windows headers
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN // Exclude rarely-used stuff from Windows headers
+#endif
 #define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS  // some CString constructors will be explicit
-#define VC_EXTRALEAN                        // Exclude rarely-used stuff from Windows headers
+
+#ifndef VC_EXTRALEAN
+#define VC_EXTRALEAN        // Exclude rarely-used stuff from Windows headers
+#endif
 
 #include <afx.h>
-#include <afxwin.h>                         // MFC core and standard components
+#include <afxwin.h>         // MFC core and standard components
 #include "BaseClasses/streams.h"
 #include <dvdmedia.h>

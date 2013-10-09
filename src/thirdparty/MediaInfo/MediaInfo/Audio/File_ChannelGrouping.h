@@ -36,7 +36,6 @@ public :
     int8u   BitDepth;
     int16u  SamplingRate;
     int8u   Endianness;
-    bool    Aligned;
     bool    CanBePcm;
 
     struct common

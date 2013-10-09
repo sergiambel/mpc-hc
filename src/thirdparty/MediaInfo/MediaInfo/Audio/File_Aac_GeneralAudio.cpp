@@ -254,9 +254,8 @@ void File_Aac::program_config_element()
 
     FILLING_BEGIN();
         //Integrity test
-        if (Aac_sampling_frequency[sampling_frequency_index_Temp]==0 || Channels>24) // TODO: full_2023548870.mp4 is buggy
+        if (Aac_sampling_frequency[sampling_frequency_index_Temp]==0 || Channels_Front<Channels_Side || Channels_Side<Channels_Back)
         {
-            Trusted_IsNot("sampling frequency / channels");
             Skip_BS(Data_BS_Remain(),                               "(Unknown frequency)");
             return;
         }
@@ -786,7 +785,7 @@ void File_Aac::section_data()
             sect_len+=sect_len_incr;
             sect_start[g][i]=k;
             sect_end[g][i]=k+sect_len;
-            for (int16u sfb=k; sfb<k+sect_len; sfb++)
+            for (int8u sfb=k; sfb<k+sect_len; sfb++)
                 sfb_cb[g][sfb]=sect_cb[g][i];
             k+= sect_len;
             i++;

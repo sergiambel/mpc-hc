@@ -74,7 +74,6 @@ public:
     virtual void Empty();
 
     bool AddEntry(LPCTSTR lpszFileName);
-    bool RemoveEntry(LPCTSTR lpszFileName);
 };
 
 struct DVD_POSITION {

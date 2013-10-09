@@ -35,13 +35,13 @@ namespace MediaInfoLib
 void File_Unknown::Read_Buffer_Init()
 {
     Accept("Unknown");
+    Finish("Unknown");
 }
 
 //---------------------------------------------------------------------------
 void File_Unknown::Read_Buffer_Continue()
 {
-    Element_Offset=File_Size;
-    Finish("Unknown");
+    Skip_XX(Element_Size, "Unknown");
 }
 
 //***************************************************************************

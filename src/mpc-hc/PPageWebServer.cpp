@@ -25,7 +25,6 @@
 #include "PPageWebServer.h"
 #include "SysVersion.h"
 #include "WinAPIUtils.h"
-#include <afxglobals.h>
 
 
 // CPPageWebServer dialog
@@ -215,7 +214,7 @@ bool CPPageWebServer::PickDir(CString& dir)
         if (iil) {
             SHGetPathFromIDList(iil, buff);
             dir = buff;
-            success = true;
+            success =  true;
         }
     }
 

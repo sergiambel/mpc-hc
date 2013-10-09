@@ -20,7 +20,6 @@
  */
 
 #pragma once
-
 #include "resource.h"
 #include <afxwin.h>
 #include <afxcmn.h>

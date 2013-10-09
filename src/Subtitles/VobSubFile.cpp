@@ -971,7 +971,7 @@ bool CVobSubFile::WriteIdx(CString fn, int delay)
     f.WriteString(str);
 
     f.WriteString(_T("# For correcting non-progressive desync. (in millisecs or hh:mm:ss:ms)\n"));
-    f.WriteString(_T("# Note: Not effective in VSFilter, use \"delay: ... \" instead.\n"));
+    f.WriteString(_T("# Note: Not effective in DirectVobSub, use \"delay: ... \" instead.\n"));
     str.Format(_T("time offset: %u\n\n"), m_toff);
     f.WriteString(str);
 
@@ -1045,7 +1045,7 @@ bool CVobSubFile::WriteIdx(CString fn, int delay)
         str.Format(_T("id: %c%c, index: %u\n"), sl.id >> 8, sl.id & 0xff, i);
         f.WriteString(str);
 
-        str = _T("# Uncomment next line to activate alternative name in VSFilter / Windows Media Player 6.x\n");
+        str = _T("# Uncomment next line to activate alternative name in DirectVobSub / Windows Media Player 6.x\n");
         f.WriteString(str);
         str.Format(_T("alt: %s\n"), sl.alt);
         if (sl.name == sl.alt) {
@@ -1505,14 +1505,14 @@ static void StretchBlt(SubPicDesc& spd, CRect dstrect, CVobSubImage& src)
         RGBQUAD* endptr = ptr + dw;
 
         for (int sx = srcx; ptr < endptr; sx += (srcdx << 1), ptr++) {
-            //          PixelAtBiLinear(*ptr, sx, srcy, src);
+            //          PixelAtBiLinear(*ptr,   sx,         srcy,       src);
             ////
             RGBQUAD cc[4];
 
-            PixelAtBiLinear(cc[0], sx,         srcy,         src);
-            PixelAtBiLinear(cc[1], sx + srcdx, srcy,         src);
-            PixelAtBiLinear(cc[2], sx,         srcy + srcdy, src);
-            PixelAtBiLinear(cc[3], sx + srcdx, srcy + srcdy, src);
+            PixelAtBiLinear(cc[0],  sx,         srcy,       src);
+            PixelAtBiLinear(cc[1],  sx + srcdx,   srcy,       src);
+            PixelAtBiLinear(cc[2],  sx,         srcy + srcdy, src);
+            PixelAtBiLinear(cc[3],  sx + srcdx,   srcy + srcdy, src);
 
             ptr->rgbRed = (cc[0].rgbRed + cc[1].rgbRed + cc[2].rgbRed + cc[3].rgbRed) >> 2;
             ptr->rgbGreen = (cc[0].rgbGreen + cc[1].rgbGreen + cc[2].rgbGreen + cc[3].rgbGreen) >> 2;

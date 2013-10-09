@@ -88,7 +88,7 @@ CComPropertySheet::~CComPropertySheet()
 {
 }
 
-int CComPropertySheet::AddPages(ISpecifyPropertyPages* pSPP, ULONG uIgnorePage /*= -1*/)
+int CComPropertySheet::AddPages(ISpecifyPropertyPages* pSPP)
 {
     if (!pSPP) {
         return 0;
@@ -128,7 +128,7 @@ int CComPropertySheet::AddPages(ISpecifyPropertyPages* pSPP, ULONG uIgnorePage /
             hr = LoadExternalPropertyPage(pPersist, caGUID.pElems[i], &pPage);
         }
 
-        if (SUCCEEDED(hr) && i != uIgnorePage) {
+        if (SUCCEEDED(hr)) {
             if (AddPage(pPage, lpUnk)) {
                 nPages++;
             }

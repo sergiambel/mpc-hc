@@ -23,16 +23,13 @@
 #include "ShockwaveGraph.h"
 #include "resource.h"
 #include "DSUtil.h"
-#include "SysVersion.h"
 #include <math.h>
-#include <Audiopolicy.h>
-#include <Mmdeviceapi.h>
 
 using namespace DSObjects;
 
+
 CShockwaveGraph::CShockwaveGraph(HWND hParent, HRESULT& hr)
     : m_fs(State_Stopped)
-    , m_fInitialVolume(1)
 {
     hr = S_OK;
 
@@ -48,32 +45,12 @@ CShockwaveGraph::CShockwaveGraph(HWND hParent, HRESULT& hr)
         return;
     }
     m_wndDestFrame.put_BackgroundColor(0);
-
-    if (SysVersion::IsVistaOrLater()) {
-        CComPtr<IMMDeviceEnumerator> pDeviceEnumerator;
-        if (SUCCEEDED(pDeviceEnumerator.CoCreateInstance(__uuidof(MMDeviceEnumerator)))) {
-            CComPtr<IMMDevice> pDevice;
-            if (SUCCEEDED(pDeviceEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice))) {
-                CComPtr<IAudioSessionManager> pSessionManager;
-                if (SUCCEEDED(pDevice->Activate(__uuidof(IAudioSessionManager), CLSCTX_ALL, nullptr,
-                                                reinterpret_cast<void**>(&pSessionManager)))) {
-                    if (SUCCEEDED(pSessionManager->GetSimpleAudioVolume(nullptr, FALSE, &m_pSimpleVolume))) {
-                        VERIFY(SUCCEEDED(m_pSimpleVolume->GetMasterVolume(&m_fInitialVolume)));
-                    }
-                }
-            }
-        }
-        ASSERT(m_pSimpleVolume);
-    }
 }
 
 CShockwaveGraph::~CShockwaveGraph()
 {
     m_wndDestFrame.DestroyWindow();
     m_wndWindowFrame.DestroyWindow();
-    if (m_pSimpleVolume) {
-        VERIFY(SUCCEEDED(m_pSimpleVolume->SetMasterVolume(m_fInitialVolume, nullptr)));
-    }
 }
 
 // IGraphBuilder
@@ -146,6 +123,8 @@ STDMETHODIMP CShockwaveGraph::GetState(LONG msTimeout, OAFilterState* pfs)
             m_fs = State_Stopped;
         }
         fs = m_fs;
+        // HACK : Make sure that the movie is running in "show all".
+        m_wndDestFrame.SendMessage(WM_COMMAND, MAKEWPARAM(20034, 0), 0);
     } catch (CException* e) {
         e->Delete();
         return E_FAIL;
@@ -195,7 +174,7 @@ STDMETHODIMP CShockwaveGraph::GetCurrentPosition(LONGLONG* pCurrent)
     return S_OK;
 }
 
-STDMETHODIMP CShockwaveGraph::SetPositions(LONGLONG* pCurrent, DWORD dwCurrentFlags, LONGLONG* pStop, DWORD dwStopFlags)
+STDMETHODIMP CShockwaveGraph::SetPositions(const LONGLONG* pCurrent, DWORD dwCurrentFlags, LONGLONG* pStop, DWORD dwStopFlags)
 {
     if (dwCurrentFlags & AM_SEEKING_AbsolutePositioning) {
         m_wndDestFrame.put_FrameNum((long)*pCurrent);
@@ -272,43 +251,27 @@ STDMETHODIMP CShockwaveGraph::GetVideoSize(long* pWidth, long* pHeight)
 // IBasicAudio
 STDMETHODIMP CShockwaveGraph::put_Volume(long lVolume)
 {
-    HRESULT hr = S_OK;
+    lVolume = (lVolume <= -10000) ? 0 : (long)(pow(10.0, lVolume / 4000.0) * 100);
+    lVolume = lVolume * 0x10000 / 100;
+    lVolume = max(min(lVolume, 0xffff), 0);
+    waveOutSetVolume(0, (lVolume << 16) | lVolume);
 
-    if (m_pSimpleVolume) {
-        float fVolume = (lVolume <= -10000) ? 0 : (lVolume >= 0) ? 1 : pow(10.f, lVolume / 4000.f);
-        hr = m_pSimpleVolume->SetMasterVolume(fVolume, nullptr);
-    } else {
-        lVolume = (lVolume <= -10000) ? 0 : (long)(pow(10.0, lVolume / 4000.0) * 100);
-        lVolume = lVolume * 0x10000 / 100;
-        lVolume = max(min(lVolume, 0xffff), 0);
-        waveOutSetVolume(0, (lVolume << 16) | lVolume);
-    }
-
-    return hr;
+    return S_OK;
 }
 
 STDMETHODIMP CShockwaveGraph::get_Volume(long* plVolume)
 {
     CheckPointer(plVolume, E_POINTER);
-    HRESULT hr = S_OK;
 
-    if (m_pSimpleVolume) {
-        float fVolume;
-        hr = m_pSimpleVolume->GetMasterVolume(&fVolume);
-        if (SUCCEEDED(hr)) {
-            *plVolume = (fVolume == 0) ? -10000 : long(4000 * log10(fVolume));
-        }
+    waveOutGetVolume(0, (DWORD*)plVolume);
+    *plVolume = (*plVolume & 0xffff + ((*plVolume >> 16) & 0xffff)) / 2 * 100 / 0x10000;
+    if (*plVolume > 0) {
+        *plVolume = min((long)(4000 * log10(*plVolume / 100.0f)), 0);
     } else {
-        waveOutGetVolume(0, (DWORD*)plVolume);
-        *plVolume = (*plVolume & 0xffff + ((*plVolume >> 16) & 0xffff)) / 2 * 100 / 0x10000;
-        if (*plVolume > 0) {
-            *plVolume = min((long)(4000 * log10(*plVolume / 100.0f)), 0);
-        } else {
-            *plVolume = -10000;
-        }
+        *plVolume = -10000;
     }
 
-    return hr;
+    return S_OK;
 }
 
 // IAMOpenProgress

@@ -29,6 +29,7 @@
 #endif
 
 ; If you want to compile the 64-bit version define "x64build" (uncomment the define below or use build.bat)
+;#define VS2012
 ;#define x64Build
 ;#define MPCHC_LITE
 
@@ -53,7 +54,7 @@
 
 #define app_ver_full    str(MPC_VERSION_MAJOR) + "." + str(MPC_VERSION_MINOR) + "." + str(MPC_VERSION_PATCH) + "." + str(MPC_VERSION_REV)
 
-#if MPC_NIGHTLY_RELEASE
+#if MPC_BETA_RELEASE
   #define app_ver       app_ver_full
 #else
   #define app_ver       str(MPC_VERSION_MAJOR) + "." + str(MPC_VERSION_MINOR) + "." + str(MPC_VERSION_PATCH)
@@ -62,19 +63,21 @@
 #define app_vername     = app_name + " " + app_ver
 #define quick_launch    "{userappdata}\Microsoft\Internet Explorer\Quick Launch"
 
-#define base_bindir   = "..\bin"
+#if defined(VS2012)
+  #define base_bindir   = "..\bin12"
+#else
+  #define base_bindir   = "..\bin"
+#endif
 
 #ifdef x64Build
   #define bindir        = base_bindir + "\mpc-hc_x64"
   #define mpchc_exe     = "mpc-hc64.exe"
   #define mpchc_ini     = "mpc-hc64.ini"
-  #define lavfiltersdir = "LAVFilters64"
   #define OutFilename   = app_name + "." + app_ver + ".x64"
 #else
   #define bindir        = base_bindir + "\mpc-hc_x86"
   #define mpchc_exe     = "mpc-hc.exe"
   #define mpchc_ini     = "mpc-hc.ini"
-  #define lavfiltersdir = "LAVFilters"
   #define OutFilename   = app_name + "." + app_ver + ".x86"
 #endif
 
@@ -90,14 +93,18 @@
   #endif
 #endif
 
-#if MPC_NIGHTLY_RELEASE
+#if defined(VS2012)
+  #define OutFilename    = OutFilename + ".VS2012"
+#endif
+
+#if MPC_BETA_RELEASE
   #define FullAppNameVer = app_vername + " " + "(" + str(MPCHC_HASH) + ")"
 #else
   #define FullAppNameVer = app_vername
 #endif
 
-#if MPC_NIGHTLY_RELEASE
-  #define FullAppNameVer = FullAppNameVer + " " + str(MPC_VERSION_NIGHTLY)
+#if MPC_BETA_RELEASE
+  #define FullAppNameVer = FullAppNameVer + " " + "Beta"
 #endif
 #ifdef MPCHC_LITE
   #define FullAppNameVer = FullAppNameVer + " " + "Lite"
@@ -221,21 +228,17 @@ Name: reset_settings;     Description: {cm:tsk_ResetSettings};     GroupDescript
 
 [Files]
 #if localize == "true"
-Source: {#bindir}\Lang\mpcresources.??.dll;     DestDir: {app}\Lang; Components: mpcresources; Flags: ignoreversion
+Source: {#bindir}\Lang\mpcresources.??.dll; DestDir: {app}\Lang; Components: mpcresources; Flags: ignoreversion
 #endif
-#ifndef MPCHC_LITE
-Source: {#bindir}\{#lavfiltersdir}\*.dll;       DestDir: {app}\{#lavfiltersdir}; Components: main; Flags: ignoreversion
-Source: {#bindir}\{#lavfiltersdir}\*.ax;        DestDir: {app}\{#lavfiltersdir}; Components: main; Flags: ignoreversion
-Source: {#bindir}\{#lavfiltersdir}\*.manifest;  DestDir: {app}\{#lavfiltersdir}; Components: main; Flags: ignoreversion
-#endif
-Source: {#bindir}\D3DCompiler_{#MPC_DX_SDK_NUMBER}.dll; DestDir: {app}; Components: main; Flags: ignoreversion
-Source: {#bindir}\d3dx9_{#MPC_DX_SDK_NUMBER}.dll;       DestDir: {app}; Components: main; Flags: ignoreversion
-Source: {#bindir}\mpciconlib.dll;               DestDir: {app}; Components: mpciconlib;   Flags: ignoreversion
-Source: {#bindir}\{#mpchc_exe};                 DestDir: {app}; Components: main;         Flags: ignoreversion
-Source: ..\COPYING.txt;                         DestDir: {app}; Components: main;         Flags: ignoreversion
-Source: ..\docs\Authors.txt;                    DestDir: {app}; Components: main;         Flags: ignoreversion
-Source: ..\docs\Changelog.txt;                  DestDir: {app}; Components: main;         Flags: ignoreversion
-Source: ..\docs\Readme.txt;                     DestDir: {app}; Components: main;         Flags: ignoreversion
+Source: {#bindir}\D3DCompiler_{#MPC_DX_SDK_NUMBER}.dll; DestDir: {app}; Components: main;  Flags: ignoreversion
+Source: {#bindir}\d3dx9_{#MPC_DX_SDK_NUMBER}.dll;       DestDir: {app}; Components: main;  Flags: ignoreversion
+Source: {#bindir}\mpciconlib.dll;           DestDir: {app};      Components: mpciconlib;   Flags: ignoreversion
+Source: {#bindir}\{#mpchc_exe};             DestDir: {app};      Components: main;         Flags: ignoreversion
+Source: {#bindir}\inApp.dll;                DestDir: {app};      Components: main;         Flags: ignoreversion regserver
+Source: ..\COPYING.txt;                     DestDir: {app};      Components: main;         Flags: ignoreversion
+Source: ..\docs\Authors.txt;                DestDir: {app};      Components: main;         Flags: ignoreversion
+Source: ..\docs\Changelog.txt;              DestDir: {app};      Components: main;         Flags: ignoreversion
+Source: ..\docs\Readme.txt;                 DestDir: {app};      Components: main;         Flags: ignoreversion
 
 
 [Icons]
@@ -286,22 +289,6 @@ Type: files; Name: {group}\{cm:UninstallProgram,Media Player Classic - Home Cine
 Type: files; Name: {userdesktop}\Media Player Classic - Home Cinema.lnk;   Check: not IsTaskSelected('desktopicon\user')   and IsUpgrade()
 Type: files; Name: {commondesktop}\Media Player Classic - Home Cinema.lnk; Check: not IsTaskSelected('desktopicon\common') and IsUpgrade()
 Type: files; Name: {#quick_launch}\Media Player Classic - Home Cinema.lnk; Check: not IsTaskSelected('quicklaunchicon')    and IsUpgrade(); OnlyBelowVersion: 6.01
-
-#ifdef x64Build
-Type: files; Name: {app}\LAVFilters\avcodec-lav-??.dll;                    Check: IsUpgrade()
-Type: files; Name: {app}\LAVFilters\avfilter-lav-?.dll;                    Check: IsUpgrade()
-Type: files; Name: {app}\LAVFilters\avformat-lav-??.dll;                   Check: IsUpgrade()
-Type: files; Name: {app}\LAVFilters\avresample-lav-?.dll;                  Check: IsUpgrade()
-Type: files; Name: {app}\LAVFilters\avutil-lav-??.dll;                     Check: IsUpgrade()
-Type: files; Name: {app}\LAVFilters\IntelQuickSyncDecoder.dll;             Check: IsUpgrade()
-Type: files; Name: {app}\LAVFilters\LAVAudio.ax;                           Check: IsUpgrade()
-Type: files; Name: {app}\LAVFilters\LAVFilters.Dependencies.manifest;      Check: IsUpgrade()
-Type: files; Name: {app}\LAVFilters\LAVSplitter.ax;                        Check: IsUpgrade()
-Type: files; Name: {app}\LAVFilters\LAVVideo.ax;                           Check: IsUpgrade()
-Type: files; Name: {app}\LAVFilters\libbluray.dll;                         Check: IsUpgrade()
-Type: files; Name: {app}\LAVFilters\swscale-lav-?.dll;                     Check: IsUpgrade()
-Type: dirifempty; Name: {app}\LAVFilters\;                                 Check: IsUpgrade()
-#endif
 
 
 #if localize == "true"
@@ -405,6 +392,13 @@ end;
 
 procedure CleanUpSettingsAndFiles();
 begin
+  //DeleteFile(ExpandConstant('{app}\bitstream.log'));
+  //DeleteFile(ExpandConstant('{app}\dxva_ipinhook.log'));
+  //DeleteFile(ExpandConstant('{app}\picture.log'));
+  //DeleteFile(ExpandConstant('{app}\slicelong.log'));
+  //DeleteFile(ExpandConstant('{app}\sliceshort.log'));
+  //DelTree('{app}\BitStream*.bin', False, True, False);
+  //DelTree('{app}\Matrix*.bin', False, True, False);
   DeleteFile(ExpandConstant('{app}\{#mpchc_ini}'));
   DeleteFile(ExpandConstant('{userappdata}\Media Player Classic\default.mpcpl'));
   RemoveDir(ExpandConstant('{userappdata}\Media Player Classic'));

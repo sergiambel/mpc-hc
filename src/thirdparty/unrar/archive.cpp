@@ -131,7 +131,6 @@ RARFORMAT Archive::IsSignature(const byte *D,size_t Size)
 bool Archive::IsArchive(bool EnableBroken)
 {
   Encrypted=false;
-  BrokenHeader=false; // Might be left from previous volume.
 #ifdef USE_QOPEN
   QOpen.Unload();
 #endif

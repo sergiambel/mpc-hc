@@ -28,7 +28,6 @@
 #include "SysVersion.h"
 #include "WinAPIUtils.h"
 #include "UpdateChecker.h"
-#include "moreuuids.h"
 
 
 CAppSettings::CAppSettings()
@@ -77,8 +76,7 @@ CAppSettings::CAppSettings()
     , nJumpDistS(DEFAULT_JUMPDISTANCE_1)
     , nJumpDistM(DEFAULT_JUMPDISTANCE_2)
     , nJumpDistL(DEFAULT_JUMPDISTANCE_3)
-    , bFastSeek(true)
-    , eFastSeekMethod(FASTSEEK_NEAREST_KEYFRAME)
+    , fFastSeek(FALSE)
     , fShowChapters(TRUE)
     , fLCDSupport(FALSE)
     , iBrightness(0)
@@ -125,26 +123,17 @@ CAppSettings::CAppSettings()
 #if INTERNAL_SOURCEFILTER_FLIC
     SrcFiltersKeys[SRC_FLIC] = _T("SRC_FLIC");
 #endif
+#if INTERNAL_SOURCEFILTER_DVSOURCE
+    SrcFiltersKeys[SRC_D2V] = _T("SRC_D2V");
+#endif
 #if INTERNAL_SOURCEFILTER_DTSAC3
     SrcFiltersKeys[SRC_DTSAC3] = _T("SRC_DTSAC3");
 #endif
 #if INTERNAL_SOURCEFILTER_MATROSKA
     SrcFiltersKeys[SRC_MATROSKA] = _T("SRC_MATROSKA");
 #endif
-#if INTERNAL_SOURCEFILTER_HTTP
-    SrcFiltersKeys[SRC_HTTP] = _T("SRC_HTTP");
-#endif
-#if INTERNAL_SOURCEFILTER_RTSP
-    SrcFiltersKeys[SRC_RTSP] = _T("SRC_RTSP");
-#endif
-#if INTERNAL_SOURCEFILTER_RTSP
-    SrcFiltersKeys[SRC_UDP] = _T("SRC_UDP");
-#endif
-#if INTERNAL_SOURCEFILTER_RTP
-    SrcFiltersKeys[SRC_RTP] = _T("SRC_RTP");
-#endif
-#if INTERNAL_SOURCEFILTER_MMS
-    SrcFiltersKeys[SRC_MMS] = _T("SRC_MMS");
+#if INTERNAL_SOURCEFILTER_SHOUTCAST
+    SrcFiltersKeys[SRC_SHOUTCAST] = _T("SRC_SHOUTCAST");
 #endif
 #if INTERNAL_SOURCEFILTER_REALMEDIA
     SrcFiltersKeys[SRC_REALMEDIA] = _T("SRC_REALMEDIA");
@@ -230,56 +219,69 @@ CAppSettings::CAppSettings()
 #if INTERNAL_DECODER_PCM
     TraFiltersKeys[TRA_PCM] = _T("TRA_PCM");
 #endif
+
+    // Internal DXVA decoders
+#if INTERNAL_DECODER_H264_DXVA
+    DXVAFiltersKeys[TRA_DXVA_H264] = _T("TRA_DXVA_H264");
+#endif
+#if INTERNAL_DECODER_VC1_DXVA
+    DXVAFiltersKeys[TRA_DXVA_VC1] = _T("TRA_DXVA_VC1");
+#endif
+#if INTERNAL_DECODER_WMV3_DXVA
+    DXVAFiltersKeys[TRA_DXVA_WMV3] = _T("TRA_DXVA_WMV3");
+#endif
+#if INTERNAL_DECODER_MPEG2_DXVA
+    DXVAFiltersKeys[TRA_DXVA_MPEG2] = _T("TRA_DXVA_MPEG2");
+#endif
+
+    // Internal FFmpeg decoders
 #if INTERNAL_DECODER_H264
-    TraFiltersKeys[TRA_H264] = _T("TRA_H264");
+    FFMFiltersKeys[FFM_H264] = _T("FFM_H264");
 #endif
 #if INTERNAL_DECODER_VC1
-    TraFiltersKeys[TRA_VC1] = _T("TRA_VC1");
+    FFMFiltersKeys[FFM_VC1] = _T("FFM_VC1");
 #endif
 #if INTERNAL_DECODER_FLV
-    TraFiltersKeys[TRA_FLV4] = _T("TRA_FLV4");
+    FFMFiltersKeys[FFM_FLV4] = _T("FFM_FLV4");
 #endif
 #if INTERNAL_DECODER_VP356
-    TraFiltersKeys[TRA_VP356] = _T("TRA_VP356");
+    FFMFiltersKeys[FFM_VP356] = _T("FFM_VP356");
 #endif
 #if INTERNAL_DECODER_VP8
-    TraFiltersKeys[TRA_VP8] = _T("TRA_VP8");
+    FFMFiltersKeys[FFM_VP8] = _T("FFM_VP8");
 #endif
 #if INTERNAL_DECODER_XVID
-    TraFiltersKeys[TRA_XVID] = _T("TRA_XVID");
+    FFMFiltersKeys[FFM_XVID] = _T("FFM_XVID");
 #endif
 #if INTERNAL_DECODER_DIVX
-    TraFiltersKeys[TRA_DIVX] = _T("TRA_DIVX");
+    FFMFiltersKeys[FFM_DIVX] = _T("FFM_DIVX");
 #endif
 #if INTERNAL_DECODER_MSMPEG4
-    TraFiltersKeys[TRA_MSMPEG4] = _T("TRA_MSMPEG4");
+    FFMFiltersKeys[FFM_MSMPEG4] = _T("FFM_MSMPEG4");
 #endif
 #if INTERNAL_DECODER_WMV
-    TraFiltersKeys[TRA_WMV] = _T("TRA_WMV");
+    FFMFiltersKeys[FFM_WMV] = _T("FFM_WMV");
 #endif
 #if INTERNAL_DECODER_SVQ
-    TraFiltersKeys[TRA_SVQ3] = _T("TRA_SVQ3");
+    FFMFiltersKeys[FFM_SVQ3] = _T("FFM_SVQ3");
 #endif
 #if INTERNAL_DECODER_H263
-    TraFiltersKeys[TRA_H263] = _T("TRA_H263");
+    FFMFiltersKeys[FFM_H263] = _T("FFM_H263");
 #endif
 #if INTERNAL_DECODER_THEORA
-    TraFiltersKeys[TRA_THEORA] = _T("TRA_THEORA");
+    FFMFiltersKeys[FFM_THEORA] = _T("FFM_THEORA");
 #endif
 #if INTERNAL_DECODER_AMVV
-    TraFiltersKeys[TRA_AMVV] = _T("TRA_AMVV");
+    FFMFiltersKeys[FFM_AMVV] = _T("FFM_AMVV");
 #endif
 #if INTERNAL_DECODER_MJPEG
-    TraFiltersKeys[TRA_MJPEG] = _T("TRA_MJPEG");
+    FFMFiltersKeys[FFM_MJPEG] = _T("FFM_MJPEG");
 #endif
 #if INTERNAL_DECODER_INDEO
-    TraFiltersKeys[TRA_INDEO] = _T("TRA_INDEO");
+    FFMFiltersKeys[FFM_INDEO] = _T("FFM_INDEO");
 #endif
 #if INTERNAL_DECODER_SCREEN
-    TraFiltersKeys[TRA_SCREEN] = _T("TRA_SCREEN");
-#endif
-#if INTERNAL_DECODER_FLIC
-    TraFiltersKeys[TRA_FLIC] = _T("TRA_FLIC");
+    FFMFiltersKeys[FFM_SCREEN] = _T("FFM_SCREEN");
 #endif
 }
 
@@ -291,9 +293,8 @@ void CAppSettings::CreateCommands()
     ADDCMD((ID_FILE_OPENDVDBD,                  'D', FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_OPEN_DVD));
     ADDCMD((ID_FILE_OPENDEVICE,                 'V', FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_OPEN_DEVICE));
     ADDCMD((ID_FILE_REOPEN,                     'E', FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_REOPEN));
-    ADDCMD((ID_FILE_RECYCLE,                      0, FVIRTKEY | FNOINVERT,                    IDS_FILE_RECYCLE));
 
-    ADDCMD((ID_FILE_SAVE_COPY,                    0, FVIRTKEY | FNOINVERT,                    IDS_AG_SAVE_COPY));
+    ADDCMD((ID_FILE_SAVE_COPY,                    0, FVIRTKEY | FNOINVERT,                    IDS_AG_SAVE_AS));
     ADDCMD((ID_FILE_SAVE_IMAGE,                 'I', FVIRTKEY | FALT | FNOINVERT,             IDS_AG_SAVE_IMAGE));
     ADDCMD((ID_FILE_SAVE_IMAGE_AUTO,          VK_F5, FVIRTKEY | FNOINVERT,                    IDS_MPLAYERC_6));
     ADDCMD((ID_FILE_SAVE_THUMBNAILS,              0, FVIRTKEY | FNOINVERT,                    IDS_FILE_SAVE_THUMBNAILS));
@@ -309,7 +310,7 @@ void CAppSettings::CreateCommands()
     ADDCMD((ID_PLAY_STOP,             VK_OEM_PERIOD, FVIRTKEY | FNOINVERT,                    IDS_AG_STOP,        APPCOMMAND_MEDIA_STOP));
     ADDCMD((ID_PLAY_FRAMESTEP,             VK_RIGHT, FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_FRAMESTEP));
     ADDCMD((ID_PLAY_FRAMESTEPCANCEL,        VK_LEFT, FVIRTKEY | FCONTROL | FNOINVERT,         IDS_MPLAYERC_16));
-    ADDCMD((ID_NAVIGATE_GOTO,                   'G', FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_GO_TO));
+    ADDCMD((ID_PLAY_GOTO,                       'G', FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_GO_TO));
     ADDCMD((ID_PLAY_INCRATE,                  VK_UP, FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_INCREASE_RATE));
     ADDCMD((ID_PLAY_DECRATE,                VK_DOWN, FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_DECREASE_RATE));
     ADDCMD((ID_PLAY_RESETRATE,                  'R', FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_RESET_RATE));
@@ -323,7 +324,6 @@ void CAppSettings::CreateCommands()
     ADDCMD((ID_PLAY_SEEKBACKWARDLARGE,            0, FVIRTKEY | FNOINVERT,                    IDS_MPLAYERC_28));
     ADDCMD((ID_PLAY_SEEKKEYFORWARD,        VK_RIGHT, FVIRTKEY | FSHIFT | FNOINVERT,           IDS_MPLAYERC_29));
     ADDCMD((ID_PLAY_SEEKKEYBACKWARD,        VK_LEFT, FVIRTKEY | FSHIFT | FNOINVERT,           IDS_MPLAYERC_30));
-    ADDCMD((ID_PLAY_SEEKSET,                VK_HOME, FVIRTKEY | FNOINVERT,                    IDS_AG_SEEKSET));
     ADDCMD((ID_NAVIGATE_SKIPFORWARD,        VK_NEXT, FVIRTKEY | FNOINVERT,                    IDS_AG_NEXT,        APPCOMMAND_MEDIA_NEXTTRACK, wmcmd::X2DOWN, wmcmd::X2DOWN));
     ADDCMD((ID_NAVIGATE_SKIPBACK,          VK_PRIOR, FVIRTKEY | FNOINVERT,                    IDS_AG_PREVIOUS,    APPCOMMAND_MEDIA_PREVIOUSTRACK, wmcmd::X1DOWN, wmcmd::X1DOWN));
     ADDCMD((ID_NAVIGATE_SKIPFORWARDFILE,    VK_NEXT, FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_NEXT_FILE));
@@ -340,7 +340,6 @@ void CAppSettings::CreateCommands()
     ADDCMD((ID_VIEW_PLAYLIST,                   '7', FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_TOGGLE_PLAYLIST));
     ADDCMD((ID_VIEW_CAPTURE,                    '8', FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_TOGGLE_CAPTURE));
     ADDCMD((ID_VIEW_SHADEREDITOR,               '9', FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_TOGGLE_SHADER));
-    ADDCMD((ID_VIEW_NAVIGATION,                   0, FVIRTKEY | FNOINVERT,                    IDS_AG_TOGGLE_NAVIGATION));
     ADDCMD((ID_VIEW_PRESETS_MINIMAL,            '1', FVIRTKEY | FNOINVERT,                    IDS_AG_VIEW_MINIMAL));
     ADDCMD((ID_VIEW_PRESETS_COMPACT,            '2', FVIRTKEY | FNOINVERT,                    IDS_AG_VIEW_COMPACT));
     ADDCMD((ID_VIEW_PRESETS_NORMAL,             '3', FVIRTKEY | FNOINVERT,                    IDS_AG_VIEW_NORMAL));
@@ -360,7 +359,7 @@ void CAppSettings::CreateCommands()
     ADDCMD((ID_VIEW_VF_ZOOM1,                     0, FVIRTKEY | FNOINVERT,                    IDS_AG_VIDFRM_ZOOM1));
     ADDCMD((ID_VIEW_VF_ZOOM2,                     0, FVIRTKEY | FNOINVERT,                    IDS_AG_VIDFRM_ZOOM2));
     ADDCMD((ID_VIEW_VF_FROMOUTSIDE,               0, FVIRTKEY | FNOINVERT,                    IDS_AG_VIDFRM_OUTSIDE));
-    ADDCMD((ID_VIEW_VF_SWITCHZOOM,                0, FVIRTKEY | FNOINVERT,                    IDS_AG_VIDFRM_SWITCHZOOM));
+    ADDCMD((ID_VIEW_VF_SWITCHZOOM,              'P', FVIRTKEY | FNOINVERT,                    IDS_AG_VIDFRM_SWITCHZOOM));
     ADDCMD((ID_ONTOP_ALWAYS,                    'A', FVIRTKEY | FCONTROL | FNOINVERT,         IDS_AG_ALWAYS_ON_TOP));
     ADDCMD((ID_VIEW_RESET,               VK_NUMPAD5, FVIRTKEY | FNOINVERT,                    IDS_AG_PNS_RESET));
     ADDCMD((ID_VIEW_INCSIZE,             VK_NUMPAD9, FVIRTKEY | FNOINVERT,                    IDS_AG_PNS_INC_SIZE));
@@ -493,20 +492,6 @@ bool CAppSettings::IsD3DFullscreen() const
     }
 }
 
-bool CAppSettings::IsISREnabled() const
-{
-    if (iDSVideoRendererType == VIDRNDT_DS_VMR7RENDERLESS ||
-            iDSVideoRendererType == VIDRNDT_DS_VMR9RENDERLESS ||
-            iDSVideoRendererType == VIDRNDT_DS_EVR_CUSTOM ||
-            iDSVideoRendererType == VIDRNDT_DS_DXR ||
-            iDSVideoRendererType == VIDRNDT_DS_SYNC ||
-            iDSVideoRendererType == VIDRNDT_DS_MADVR) {
-        return fAutoloadSubtitles;
-    } else {
-        return false;
-    }
-}
-
 CString CAppSettings::SelectedAudioRenderer() const
 {
     CString strResult;
@@ -595,9 +580,10 @@ void CAppSettings::SaveSettings()
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_MENULANG, idMenuLang);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_AUDIOLANG, idAudioLang);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_SUBTITLESLANG, idSubtitlesLang);
+    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_AUTOSPEAKERCONF, fAutoSpeakerConf);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_CLOSEDCAPTIONS, fClosedCaptions);
     CString style;
-    pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_SPSTYLE, style <<= subtitlesDefStyle);
+    pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_SPLOGFONT, style <<= subdefstyle);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_SPOVERRIDEPLACEMENT, fOverridePlacement);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_SPHORPOS, nHorPos);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_SPVERPOS, nVerPos);
@@ -626,11 +612,12 @@ void CAppSettings::SaveSettings()
     // Multi-monitor code
     pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_FULLSCREENMONITOR, CString(strFullScreenMonitor));
     // Prevent Minimize when in Fullscreen mode on non default monitor
-    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_PREVENT_MINIMIZE, fPreventMinimize);
-    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_WIN7TASKBAR, fUseWin7TaskBar);
-    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_EXIT_AFTER_PB, fExitAfterPlayback);
-    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_NEXT_AFTER_PB, fNextInDirAfterPlayback);
-    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_SEARCH_IN_FOLDER, fUseSearchInFolder);
+    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_PREVENT_MINIMIZE, fPreventMinimize);
+    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_WIN7TASKBAR, fUseWin7TaskBar);
+    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_EXIT_AFTER_PB, fExitAfterPlayback);
+    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_NEXT_AFTER_PB, fNextInDirAfterPlayback);
+    // TODO: Change IDS_RS_MPC_NO_SEARCH_IN_FOLDER into IDS_RS_SEARCH_IN_FOLDER
+    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_NO_SEARCH_IN_FOLDER, !fUseSearchInFolder);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_USE_TIME_TOOLTIP, fUseTimeTooltip);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_TIME_TOOLTIP_POSITION, nTimeTooltipPosition);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_OSD_SIZE, nOSDSize);
@@ -658,8 +645,7 @@ void CAppSettings::SaveSettings()
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_SHOWOSD, (int)fShowOSD);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_ENABLEEDLEDITOR, (int)fEnableEDLEditor);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_LANGUAGE, language);
-    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_FASTSEEK, (int)bFastSeek);
-    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_FASTSEEK_METHOD, eFastSeekMethod);
+    pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_FASTSEEK_KEYFRAME, (int)fFastSeek);
     pApp->WriteProfileInt(IDS_R_SETTINGS, IDS_RS_SHOW_CHAPTERS, (int)fShowChapters);
 
 
@@ -734,7 +720,7 @@ void CAppSettings::SaveSettings()
             CString str2;
             str2.Format(_T("%u %x %x %s %d %u %u %u"),
                         wc.cmd, wc.fVirt, wc.key,
-                        _T("\"") + CString(wc.rmcmd) + _T("\""), wc.rmrepcnt,
+                        _T("\"") + CString(wc.rmcmd) +  _T("\""), wc.rmrepcnt,
                         wc.mouse, wc.appcmd, wc.mouseFS);
             pApp->WriteProfileString(IDS_R_COMMANDS, str, str2);
             i++;
@@ -762,6 +748,12 @@ void CAppSettings::SaveSettings()
     }
     for (int f = 0; f < TRA_LAST; f++) {
         pApp->WriteProfileInt(IDS_R_INTERNAL_FILTERS, TraFiltersKeys[f], TraFilters[f]);
+    }
+    for (int f = 0; f < TRA_DXVA_LAST; f++) {
+        pApp->WriteProfileInt(IDS_R_INTERNAL_FILTERS, DXVAFiltersKeys[f], DXVAFilters[f]);
+    }
+    for (int f = 0; f < FFM_LAST; f++) {
+        pApp->WriteProfileInt(IDS_R_INTERNAL_FILTERS, FFMFiltersKeys[f], FFmpegFilters[f]);
     }
 
     pApp->WriteProfileString(IDS_R_SETTINGS, IDS_RS_LOGOFILE, strLogoFileName);
@@ -1055,14 +1047,15 @@ void CAppSettings::LoadSettings()
     fShowBarsWhenFullScreen = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_FULLSCREENCTRLS, TRUE);
     nShowBarsWhenFullScreenTimeOut = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_FULLSCREENCTRLSTIMEOUT, 0);
 
-    // Multi-monitor code
+    //Multi-monitor code
     strFullScreenMonitor = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_FULLSCREENMONITOR, _T(""));
-    // Prevent Minimize when in fullscreen mode on non default monitor
-    fPreventMinimize = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_PREVENT_MINIMIZE, FALSE);
-    fUseWin7TaskBar = SysVersion::Is7OrLater() ? !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_WIN7TASKBAR, TRUE) : FALSE;
-    fExitAfterPlayback = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_EXIT_AFTER_PB, FALSE);
-    fNextInDirAfterPlayback = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_NEXT_AFTER_PB, FALSE);
-    fUseSearchInFolder = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_SEARCH_IN_FOLDER, TRUE);
+    // Prevent Minimize when in Fullscreen mode on non default monitor
+    fPreventMinimize = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_PREVENT_MINIMIZE, FALSE);
+    fUseWin7TaskBar = SysVersion::Is7OrLater() ? !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_WIN7TASKBAR, TRUE) : FALSE;
+    fExitAfterPlayback = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_EXIT_AFTER_PB, FALSE);
+    fNextInDirAfterPlayback = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_NEXT_AFTER_PB, FALSE);
+    // TODO: Change IDS_RS_MPC_NO_SEARCH_IN_FOLDER into IDS_RS_SEARCH_IN_FOLDER
+    fUseSearchInFolder = !pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_NO_SEARCH_IN_FOLDER, FALSE);
     fUseTimeTooltip = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_USE_TIME_TOOLTIP, TRUE);
     nTimeTooltipPosition = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_TIME_TOOLTIP_POSITION, TIME_TOOLTIP_ABOVE_SEEKBAR);
     nOSDSize = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_MPC_OSD_SIZE, SysVersion::IsVistaOrLater() ? 18 : 20);
@@ -1134,12 +1127,14 @@ void CAppSettings::LoadSettings()
     idMenuLang = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_MENULANG, 0);
     idAudioLang = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_AUDIOLANG, 0);
     idSubtitlesLang = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_SUBTITLESLANG, 0);
+    fAutoSpeakerConf = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_AUTOSPEAKERCONF, TRUE);
     fClosedCaptions = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_CLOSEDCAPTIONS, FALSE);
+    // TODO: rename subdefstyle -> defStyle, IDS_RS_SPLOGFONT -> IDS_RS_SPSTYLE
     {
-        CString temp = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SPSTYLE, _T(""));
-        subtitlesDefStyle <<= temp;
+        CString temp = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_SPLOGFONT, _T(""));
+        subdefstyle <<= temp;
         if (temp.IsEmpty()) {
-            subtitlesDefStyle.relativeTo = 1; // default "Position subtitles relative to the video frame" option is checked
+            subdefstyle.relativeTo = 1; // default "Position subtitles relative to the video frame" option is checked
         }
     }
     fOverridePlacement = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_SPOVERRIDEPLACEMENT, FALSE);
@@ -1307,6 +1302,18 @@ void CAppSettings::LoadSettings()
     for (int f = 0; f < TRA_LAST; f++) {
         TraFilters[f] = !!pApp->GetProfileInt(IDS_R_INTERNAL_FILTERS, TraFiltersKeys[f], TRUE);
     }
+    for (int f = 0; f < TRA_DXVA_LAST; f++) {
+        DXVAFilters[f] = !!pApp->GetProfileInt(IDS_R_INTERNAL_FILTERS, DXVAFiltersKeys[f], TRUE);
+    }
+    for (int f = 0; f < FFM_LAST; f++) {
+        FFmpegFilters[f] = !!pApp->GetProfileInt(IDS_R_INTERNAL_FILTERS, FFMFiltersKeys[f], TRUE);
+    }
+    if (!TRA_DXVA_LAST) {
+        DXVAFilters[0] = FALSE;
+    }
+    if (!FFM_LAST) {
+        FFmpegFilters[0] = FALSE;
+    }
 
     strLogoFileName = pApp->GetProfileString(IDS_R_SETTINGS, IDS_RS_LOGOFILE, _T(""));
     nLogoId = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_LOGOID, DEF_LOGO);
@@ -1447,9 +1454,7 @@ void CAppSettings::LoadSettings()
 
     fShowOSD              = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_SHOWOSD, TRUE);
     fEnableEDLEditor      = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_ENABLEEDLEDITOR, FALSE);
-    bFastSeek             = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_FASTSEEK, TRUE);
-    eFastSeekMethod       = static_cast<decltype(eFastSeekMethod)>(
-                                pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_FASTSEEK_METHOD, FASTSEEK_NEAREST_KEYFRAME));
+    fFastSeek             = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_FASTSEEK_KEYFRAME, FALSE);
     fShowChapters         = !!pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_SHOW_CHAPTERS, TRUE);
 
 
@@ -1629,7 +1634,7 @@ void CAppSettings::UpdateRenderersData(bool fSave)
             delete [] dPtr;
         }
 
-        r.fResetDevice = !!pApp->GetProfileInt(IDS_R_SETTINGS, _T("ResetDevice"), !SysVersion::IsVistaOrLater());
+        r.fResetDevice = !!pApp->GetProfileInt(IDS_R_SETTINGS, _T("ResetDevice"), TRUE);
 
         r.nSPCSize = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_SPCSIZE, 10);
         r.nSPCMaxRes = pApp->GetProfileInt(IDS_R_SETTINGS, IDS_RS_SPCMAXRES, 0);
@@ -1773,8 +1778,6 @@ void CAppSettings::ParseCommandLine(CAtlList<CString>& cmdln)
                 ExtractDVDStartPos(cmdln.GetNext(pos));
             } else if (sw == _T("cd")) {
                 nCLSwitches |= CLSW_CD;
-            } else if (sw == _T("device")) {
-                nCLSwitches |= CLSW_DEVICE;
             } else if (sw == _T("add")) {
                 nCLSwitches |= CLSW_ADD;
             } else if (sw == _T("regvid")) {
@@ -1852,11 +1855,7 @@ void CAppSettings::ParseCommandLine(CAtlList<CString>& cmdln)
                 nCLSwitches |= CLSW_HELP | CLSW_UNRECOGNIZEDSWITCH;
             }
         } else {
-            if (param == _T("-")) { // Special case: standard input
-                slFiles.AddTail(_T("pipe://stdin"));
-            } else {
-                slFiles.AddTail(ParseFileName(param));
-            }
+            slFiles.AddTail(ParseFileName(param));
         }
     }
 }
@@ -1996,7 +1995,7 @@ void CAppSettings::CRecentFileAndURLList::Add(LPCTSTR lpszPathName)
 
 bool CAppSettings::IsVSFilterInstalled()
 {
-    return IsCLSIDRegistered(CLSID_VSFilter);
+    return IsCLSIDRegistered(_T("{9852A670-F845-491B-9BE6-EBD841B8A613}"));
 }
 
 bool CAppSettings::HasEVR()

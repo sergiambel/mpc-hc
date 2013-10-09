@@ -84,9 +84,6 @@ File_Cdp::File_Cdp()
     //Config
     PTS_DTS_Needed=true;
 
-    //In
-    AspectRatio=0;
-
     //Temp
     ParserName=__T("CDP");
     #if MEDIAINFO_EVENTS

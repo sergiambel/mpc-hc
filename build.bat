@@ -41,9 +41,10 @@ SET ARGB=0
 SET ARGBC=0
 SET ARGC=0
 SET ARGCL=0
+SET ARGCOMP=0
 SET ARGD=0
 SET ARGF=0
-SET ARGLAVF=0
+SET ARGFF=0
 SET ARGL=0
 SET ARGM=0
 SET ARGPL=0
@@ -59,7 +60,7 @@ FOR %%G IN (%ARG%) DO (
   IF /I "%%G" == "CopyDXDll"    ENDLOCAL & CALL :SubCopyDXDll x86 & CALL :SubCopyDXDll x64 & EXIT /B
   IF /I "%%G" == "CopyDX"       ENDLOCAL & CALL :SubCopyDXDll x86 & CALL :SubCopyDXDll x64 & EXIT /B
   IF /I "%%G" == "Build"        SET "BUILDTYPE=Build"    & SET /A ARGB+=1
-  IF /I "%%G" == "Clean"        SET "BUILDTYPE=Clean"    & SET /A ARGB+=1  & SET /A ARGCL+=1 & SET /A ARGLAVF+=1
+  IF /I "%%G" == "Clean"        SET "BUILDTYPE=Clean"    & SET /A ARGB+=1  & SET /A ARGCL+=1 & SET /A ARGFF+=1
   IF /I "%%G" == "Rebuild"      SET "BUILDTYPE=Rebuild"  & SET /A ARGB+=1  & SET /A ARGRE+=1
   IF /I "%%G" == "Both"         SET "PPLATFORM=Both"     & SET /A ARGPL+=1
   IF /I "%%G" == "Win32"        SET "PPLATFORM=Win32"    & SET /A ARGPL+=1 & SET /A ARGANL-=1
@@ -77,18 +78,20 @@ FOR %%G IN (%ARG%) DO (
   IF /I "%%G" == "Translations" SET "CONFIG=Translation" & SET /A ARGC+=1  & SET /A ARGD+=1 & SET /A ARGM+=1
   IF /I "%%G" == "Debug"        SET "BUILDCFG=Debug"     & SET /A ARGBC+=1 & SET /A ARGD+=1
   IF /I "%%G" == "Release"      SET "BUILDCFG=Release"   & SET /A ARGBC+=1
+  IF /I "%%G" == "VS2010"       SET "COMPILER=VS2010"    & SET /A ARGCOMP+=1
+  IF /I "%%G" == "VS2012"       SET "COMPILER=VS2012"    & SET /A ARGCOMP+=1 & SET /A ARGANL-=1
   IF /I "%%G" == "Packages"     SET "PACKAGES=True"      & SET /A VALID+=1 & SET /A ARGCL+=1 & SET /A ARGD+=1 & SET /A ARGF+=1 & SET /A ARGM+=1
   IF /I "%%G" == "Installer"    SET "INSTALLER=True"     & SET /A VALID+=1 & SET /A ARGCL+=1 & SET /A ARGD+=1 & SET /A ARGF+=1 & SET /A ARGM+=1
   IF /I "%%G" == "7z"           SET "ZIP=True"           & SET /A VALID+=1 & SET /A ARGCL+=1 & SET /A ARGM+=1
   IF /I "%%G" == "Lite"         SET "MPCHC_LITE=True"    & SET /A VALID+=1 & SET /A ARGL+=1
-  IF /I "%%G" == "LAVFilters"   SET "Rebuild=LAVFilters" & SET /A VALID+=1 & SET /A ARGLAVF+=1 & SET /A ARGRE+=1
+  IF /I "%%G" == "FFmpeg"       SET "Rebuild=FFmpeg"     & SET /A VALID+=1 & SET /A ARGFF+=1 & SET /A ARGRE+=1
   IF /I "%%G" == "Silent"       SET "SILENT=True"        & SET /A VALID+=1
   IF /I "%%G" == "Nocolors"     SET "NOCOLORS=True"      & SET /A VALID+=1
   IF /I "%%G" == "Analyze"      SET "ANALYZE=True"       & SET /A VALID+=1 & SET /A ARGANL+=1
 )
 
 FOR %%G IN (%*) DO SET /A INPUT+=1
-SET /A VALID+=%ARGB%+%ARGPL%+%ARGC%+%ARGBC%
+SET /A VALID+=%ARGB%+%ARGPL%+%ARGC%+%ARGBC%+%ARGCOMP%
 
 IF %VALID% NEQ %INPUT% GOTO UnsupportedSwitch
 
@@ -96,10 +99,11 @@ IF %ARGB%    GTR 1 (GOTO UnsupportedSwitch) ELSE IF %ARGB% == 0    (SET "BUILDTY
 IF %ARGPL%   GTR 1 (GOTO UnsupportedSwitch) ELSE IF %ARGPL% == 0   (SET "PPLATFORM=Both")
 IF %ARGC%    GTR 1 (GOTO UnsupportedSwitch) ELSE IF %ARGC% == 0    (SET "CONFIG=MPCHC")
 IF %ARGBC%   GTR 1 (GOTO UnsupportedSwitch) ELSE IF %ARGBC% == 0   (SET "BUILDCFG=Release")
+IF %ARGCOMP% GTR 1 (GOTO UnsupportedSwitch) ELSE IF %ARGCOMP% == 0 (SET "COMPILER=VS2010")
 IF %ARGCL%   GTR 1 (GOTO UnsupportedSwitch)
 IF %ARGD%    GTR 1 (GOTO UnsupportedSwitch)
 IF %ARGF%    GTR 1 (GOTO UnsupportedSwitch)
-IF %ARGLAVF% GTR 1 (GOTO UnsupportedSwitch)
+IF %ARGFF%   GTR 1 (GOTO UnsupportedSwitch)
 IF %ARGL%    GTR 1 (GOTO UnsupportedSwitch)
 IF %ARGM%    GTR 1 (GOTO UnsupportedSwitch)
 IF %ARGRE%   GTR 1 (GOTO UnsupportedSwitch)
@@ -107,9 +111,17 @@ IF %ARGANL%  GTR 1 (GOTO UnsupportedSwitch)
 
 IF /I "%PACKAGES%" == "True" SET "INSTALLER=True" & SET "ZIP=True"
 
-IF NOT DEFINED VS110COMNTOOLS GOTO MissingVar
-SET "TOOLSET=%VS110COMNTOOLS%..\..\VC\vcvarsall.bat"
-SET "BIN_DIR=bin"
+IF /I "%COMPILER%" == "VS2012" (
+  IF NOT DEFINED VS110COMNTOOLS GOTO MissingVar
+  SET "TOOLSET=%VS110COMNTOOLS%..\..\VC\vcvarsall.bat"
+  SET "BIN_DIR=bin12"
+  SET "SLN_SUFFIX=_vs2012"
+) ELSE (
+  IF NOT DEFINED VS100COMNTOOLS GOTO MissingVar
+  SET "TOOLSET=%VS100COMNTOOLS%..\..\VC\vcvarsall.bat"
+  SET "BIN_DIR=bin"
+  SET "SLN_SUFFIX="
+)
 
 IF EXIST "%~dp0signinfo.txt" (
   IF /I "%INSTALLER%" == "True" SET "SIGN=True"
@@ -143,13 +155,7 @@ GOTO End
 :Main
 IF %ERRORLEVEL% NEQ 0 EXIT /B
 
-IF /I "%PPLATFORM%" == "x64" (
-  SET "LAVFILTERSDIR=LAVFilters64"
-) ELSE (
-  SET "LAVFILTERSDIR=LAVFilters"
-)
-
-IF /I "%Rebuild%" == "LAVFilters" CALL "src\thirdparty\LAVFilters\build_lavfilters.bat" Rebuild %PPLATFORM% %BUILDCFG%
+IF /I "%Rebuild%" == "FFmpeg" CALL "src\thirdparty\ffmpeg\gccbuild.bat" Rebuild %PPLATFORM% %BUILDCFG% %COMPILER%
 IF %ERRORLEVEL% NEQ 0 ENDLOCAL & EXIT /B
 
 REM Always use x86_amd64 compiler, even on 64bit windows, because this is what VS is doing
@@ -187,7 +193,7 @@ EXIT /B
 
 :End
 IF %ERRORLEVEL% NEQ 0 EXIT /B
-TITLE Compiling MPC-HC [FINISHED]
+TITLE Compiling MPC-HC %COMPILER% [FINISHED]
 SET END_TIME=%TIME%
 CALL :SubGetDuration
 CALL :SubMsg "INFO" "Compilation started on %START_DATE%-%START_TIME% and completed on %DATE%-%END_TIME% [%DURATION%]"
@@ -198,19 +204,19 @@ EXIT /B
 :SubFilters
 IF %ERRORLEVEL% NEQ 0 EXIT /B
 
-TITLE Compiling MPC-HC Filters - %BUILDCFG% Filter^|%1...
+TITLE Compiling MPC-HC Filters %COMPILER% - %BUILDCFG% Filter^|%1...
 REM Call update_version.bat before building the filters
 CALL "update_version.bat"
 
-MSBuild.exe mpc-hc.sln %MSBUILD_SWITCHES%^
+MSBuild.exe mpc-hc%SLN_SUFFIX%.sln %MSBUILD_SWITCHES%^
  /target:%BUILDTYPE% /property:Configuration="%BUILDCFG% Filter";Platform=%1^
  /flp1:LogFile=%LOG_DIR%\filters_errors_%BUILDCFG%_%1.log;errorsonly;Verbosity=diagnostic^
  /flp2:LogFile=%LOG_DIR%\filters_warnings_%BUILDCFG%_%1.log;warningsonly;Verbosity=diagnostic
 IF %ERRORLEVEL% NEQ 0 (
-  CALL :SubMsg "ERROR" "mpc-hc.sln %BUILDCFG% Filter %1 - Compilation failed!"
+  CALL :SubMsg "ERROR" "mpc-hc%SLN_SUFFIX%.sln %BUILDCFG% Filter %1 - Compilation failed!"
   EXIT /B
 ) ELSE (
-  CALL :SubMsg "INFO" "mpc-hc.sln %BUILDCFG% Filter %1 compiled successfully"
+  CALL :SubMsg "INFO" "mpc-hc%SLN_SUFFIX%.sln %BUILDCFG% Filter %1 compiled successfully"
 )
 IF /I "%SIGN%" == "True" CALL :SubSign Filters *.ax
 IF /I "%SIGN%" == "True" CALL :SubSign Filters VSFilter.dll
@@ -220,21 +226,18 @@ EXIT /B
 :SubMPCHC
 IF %ERRORLEVEL% NEQ 0 EXIT /B
 
-TITLE Compiling MPC-HC - %BUILDCFG%^|%1...
-MSBuild.exe mpc-hc.sln %MSBUILD_SWITCHES%^
+TITLE Compiling MPC-HC %COMPILER% - %BUILDCFG%^|%1...
+MSBuild.exe mpc-hc%SLN_SUFFIX%.sln %MSBUILD_SWITCHES%^
  /target:%BUILDTYPE% /property:Configuration="%BUILDCFG%";Platform=%1^
  /flp1:LogFile="%LOG_DIR%\mpc-hc_errors_%BUILDCFG%_%1.log";errorsonly;Verbosity=diagnostic^
  /flp2:LogFile="%LOG_DIR%\mpc-hc_warnings_%BUILDCFG%_%1.log";warningsonly;Verbosity=diagnostic
 IF %ERRORLEVEL% NEQ 0 (
-  CALL :SubMsg "ERROR" "mpc-hc.sln %BUILDCFG% %1 - Compilation failed!"
+  CALL :SubMsg "ERROR" "mpc-hc%SLN_SUFFIX%.sln %BUILDCFG% %1 - Compilation failed!"
   EXIT /B
 ) ELSE (
-  CALL :SubMsg "INFO" "mpc-hc.sln %BUILDCFG% %1 compiled successfully"
+  CALL :SubMsg "INFO" "mpc-hc%SLN_SUFFIX%.sln %BUILDCFG% %1 compiled successfully"
 )
 IF /I "%SIGN%" == "True" CALL :SubSign MPC-HC mpc-hc*.exe
-IF /I "%SIGN%" == "True" CALL :SubSign MPC-HC *.dll %LAVFILTERSDIR%
-IF /I "%SIGN%" == "True" CALL :SubSign MPC-HC *.ax %LAVFILTERSDIR%
-
 EXIT /B
 
 
@@ -259,14 +262,14 @@ EXIT /B
 :SubMPCIconLib
 IF %ERRORLEVEL% NEQ 0 EXIT /B
 
-TITLE Compiling mpciconlib - Release^|%1...
-MSBuild.exe mpciconlib.sln %MSBUILD_SWITCHES%^
+TITLE Compiling mpciconlib %COMPILER% - Release^|%1...
+MSBuild.exe mpciconlib%SLN_SUFFIX%.sln %MSBUILD_SWITCHES%^
  /target:%BUILDTYPE% /property:Configuration=Release;Platform=%1
 IF %ERRORLEVEL% NEQ 0 (
-  CALL :SubMsg "ERROR" "mpciconlib.sln %1 - Compilation failed!"
+  CALL :SubMsg "ERROR" "mpciconlib%SLN_SUFFIX%.sln %1 - Compilation failed!"
   EXIT /B
 ) ELSE (
-  CALL :SubMsg "INFO" "mpciconlib.sln %1 compiled successfully"
+  CALL :SubMsg "INFO" "mpciconlib%SLN_SUFFIX%.sln %1 compiled successfully"
 )
 IF /I "%SIGN%" == "True" CALL :SubSign MPC-HC mpciconlib.dll
 EXIT /B
@@ -280,8 +283,8 @@ FOR %%G IN ("Armenian" "Basque" "Belarusian" "Catalan" "Chinese Simplified"
  "Hungarian" "Italian" "Japanese" "Korean" "Polish" "Portuguese (Brazil)"
  "Romanian" "Russian" "Slovak" "Spanish" "Swedish" "Turkish" "Ukrainian"
 ) DO (
- TITLE Compiling mpcresources - %%~G^|%1...
- MSBuild.exe mpcresources.sln %MSBUILD_SWITCHES%^
+ TITLE Compiling mpcresources %COMPILER% - %%~G^|%1...
+ MSBuild.exe mpcresources%SLN_SUFFIX%.sln %MSBUILD_SWITCHES%^
  /target:%BUILDTYPE% /property:Configuration="Release %%~G";Platform=%1
  IF %ERRORLEVEL% NEQ 0 CALL :SubMsg "ERROR" "Compilation failed!" & EXIT /B
 )
@@ -309,7 +312,6 @@ EXIT /B
 
 
 :SubCopyDXDll
-IF /I "%BUILDCFG%" == "Debug" EXIT /B
 PUSHD "%BIN_DIR%"
 EXPAND "%DXSDK_DIR%\Redist\Jun2010_D3DCompiler_43_%~1.cab" -F:D3DCompiler_43.dll mpc-hc_%~1 >NUL
 EXPAND "%DXSDK_DIR%\Redist\Jun2010_d3dx9_43_%~1.cab" -F:d3dx9_43.dll mpc-hc_%~1 >NUL
@@ -326,6 +328,8 @@ IF /I "%~1" == "x64" (
   CALL :SubCopyDXDll x64
 ) ELSE CALL :SubCopyDXDll x86
 
+IF /I "%COMPILER%" == "VS2012" (SET MPCHC_INNO_DEF=%MPCHC_INNO_DEF% /DVS2012)
+
 CALL :SubDetectInnoSetup
 
 IF NOT DEFINED InnoSetupPath (
@@ -333,7 +337,7 @@ IF NOT DEFINED InnoSetupPath (
   EXIT /B
 )
 
-TITLE Compiling %1 installer...
+TITLE Compiling %1 %COMPILER% installer...
 "%InnoSetupPath%" /SMySignTool="cmd /c "%~dp0contrib\sign.bat" $f" /Q /O"%BIN_DIR%"^
  "distrib\mpc-hc_setup.iss" %MPCHC_INNO_DEF%
 IF %ERRORLEVEL% NEQ 0 CALL :SubMsg "ERROR" "Compilation failed!" & EXIT /B
@@ -364,26 +368,19 @@ IF /I "%~2" == "Win32" (
 
 PUSHD "%BIN_DIR%"
 
-SET "VS_OUT_DIR=%~1_%ARCH%"
 SET "PCKG_NAME=%NAME%.%MPCHC_VER%.%ARCH%"
 IF DEFINED MPCHC_LITE (SET "PCKG_NAME=%PCKG_NAME%.Lite")
-IF /I "%BUILDCFG%" == "Debug" (
-  SET "PCKG_NAME=%PCKG_NAME%.dbg"
-  SET "VS_OUT_DIR=%VS_OUT_DIR%_Debug"
-)
+IF /I "%COMPILER%" == "VS2012" (SET "PCKG_NAME=%PCKG_NAME%.%COMPILER%")
 
 IF EXIST "%PCKG_NAME%.7z"     DEL "%PCKG_NAME%.7z"
 IF EXIST "%PCKG_NAME%.pdb.7z" DEL "%PCKG_NAME%.pdb.7z"
 IF EXIST "%PCKG_NAME%"        RD /Q /S "%PCKG_NAME%"
 
-SET "PDB_FILES=*.pdb"
-IF NOT DEFINED MPCHC_LITE (SET "PDB_FILES=%PDB_FILES% %LAVFILTERSDIR%\*.pdb")
-
 REM Compress the pdb file for mpc-hc only
 IF /I "%NAME%" == "MPC-HC" (
-  PUSHD "%VS_OUT_DIR%"
+  PUSHD "%~1_%ARCH%"
   TITLE Creating archive %PCKG_NAME%.pdb.7z...
-  START "7z" /B /WAIT "%SEVENZIP%" a -t7z "%PCKG_NAME%.pdb.7z" %PDB_FILES% -m0=LZMA -mx9 -ms=on
+  START "7z" /B /WAIT "%SEVENZIP%" a -t7z "%PCKG_NAME%.pdb.7z" "*.pdb" -m0=LZMA -mx9 -ms=on
   IF %ERRORLEVEL% NEQ 0 CALL :SubMsg "ERROR" "Unable to create %PCKG_NAME%.pdb.7z!" & EXIT /B
   CALL :SubMsg "INFO" "%PCKG_NAME%.pdb.7z successfully created"
   IF EXIST "%PCKG_NAME%.pdb.7z" MOVE /Y "%PCKG_NAME%.pdb.7z" ".." >NUL
@@ -395,28 +392,22 @@ IF NOT EXIST "%PCKG_NAME%" MD "%PCKG_NAME%"
 
 IF /I "%NAME%" == "MPC-HC" (
   IF NOT DEFINED MPCHC_LITE (
-    IF /I "%BUILDCFG%" NEQ "Debug" (
-      IF NOT EXIST "%PCKG_NAME%\Lang"          MD "%PCKG_NAME%\Lang"
-    )
-    IF NOT EXIST "%PCKG_NAME%\%LAVFILTERSDIR%" MD "%PCKG_NAME%\%LAVFILTERSDIR%"
+    IF NOT EXIST "%PCKG_NAME%\Lang" MD "%PCKG_NAME%\Lang"
   )
   IF /I "%ARCH%" == "x64" (
-    COPY /Y /V "%VS_OUT_DIR%\mpc-hc64.exe" "%PCKG_NAME%\mpc-hc64.exe" >NUL
+    COPY /Y /V "%~1_%ARCH%\mpc-hc64.exe" "%PCKG_NAME%\mpc-hc64.exe" >NUL
   ) ELSE (
-    COPY /Y /V "%VS_OUT_DIR%\mpc-hc.exe"   "%PCKG_NAME%\mpc-hc.exe" >NUL
+    COPY /Y /V "%~1_%ARCH%\mpc-hc.exe"   "%PCKG_NAME%\mpc-hc.exe" >NUL
   )
-  COPY /Y /V "%VS_OUT_DIR%\mpciconlib.dll"               "%PCKG_NAME%\*.dll" >NUL
+  COPY /Y /V "%~1_%ARCH%\mpciconlib.dll"             "%PCKG_NAME%\*.dll" >NUL
   IF NOT DEFINED MPCHC_LITE (
-    COPY /Y /V "%VS_OUT_DIR%\Lang\mpcresources.??.dll"   "%PCKG_NAME%\Lang\mpcresources.??.dll" >NUL
-    COPY /Y /V "%VS_OUT_DIR%\%LAVFILTERSDIR%\*.ax"       "%PCKG_NAME%\%LAVFILTERSDIR%" >NUL
-    COPY /Y /V "%VS_OUT_DIR%\%LAVFILTERSDIR%\*.dll"      "%PCKG_NAME%\%LAVFILTERSDIR%" >NUL
-    COPY /Y /V "%VS_OUT_DIR%\%LAVFILTERSDIR%\*.manifest" "%PCKG_NAME%\%LAVFILTERSDIR%" >NUL
+    COPY /Y /V "%~1_%ARCH%\Lang\mpcresources.??.dll" "%PCKG_NAME%\Lang\mpcresources.??.dll" >NUL
   )
-  COPY /Y /V "%VS_OUT_DIR%\D3DCompiler_43.dll"           "%PCKG_NAME%\D3DCompiler_43.dll" >NUL
-  COPY /Y /V "%VS_OUT_DIR%\d3dx9_43.dll"                 "%PCKG_NAME%\d3dx9_43.dll" >NUL
+  COPY /Y /V "%~1_%ARCH%\D3DCompiler_43.dll"         "%PCKG_NAME%\D3DCompiler_43.dll" >NUL
+  COPY /Y /V "%~1_%ARCH%\d3dx9_43.dll"               "%PCKG_NAME%\d3dx9_43.dll" >NUL
 ) ELSE (
-  COPY /Y /V "%VS_OUT_DIR%\*.ax"           "%PCKG_NAME%\*.ax" >NUL
-  COPY /Y /V "%VS_OUT_DIR%\VSFilter.dll"   "%PCKG_NAME%\VSFilter.dll" >NUL
+  COPY /Y /V "%~1_%ARCH%\*.ax"           "%PCKG_NAME%\*.ax" >NUL
+  COPY /Y /V "%~1_%ARCH%\VSFilter.dll"   "%PCKG_NAME%\VSFilter.dll" >NUL
 )
 
 COPY /Y /V "..\COPYING.txt"         "%PCKG_NAME%" >NUL
@@ -439,26 +430,29 @@ EXIT /B
 :SubGetVersion
 REM Get the version
 IF NOT EXIST "include\version_rev.h" SET "FORCE_VER_UPDATE=True"
-IF /I "%FORCE_VER_UPDATE%" == "True" CALL "update_version.bat" && SET "FORCE_VER_UPDATE=False"
+IF DEFINED FORCE_VER_UPDATE CALL "update_version.bat" && SET "FORCE_VER_UPDATE="
 
 FOR /F "tokens=2,3" %%A IN ('FINDSTR /R /C:"define MPC_VERSION_[M,P]" "include\version.h"') DO (
   SET "%%A=%%B"
 )
 
-FOR /F "tokens=2,3" %%A IN ('FINDSTR /R /C:"define MPC" "include\version_rev.h"') DO (
-  SET "%%A=%%B"
+FOR /F "tokens=2,3,4 delims=(" %%A IN ('FINDSTR /L /C:"define MPC_VERSION_REV_FULL" "include\version_rev.h"') DO (
+  SET "MPC_VERSION_REV=%%A" & SET "MPCHC_HASH=%%B" & SET "MPCHC_BRANCH=%%C"
 )
 
-FOR /F "tokens=3" %%A IN ('FINDSTR /R /C:"define MPC_NIGHTLY_RELEASE" "include\version.h"') DO (
-  SET "MPCHC_NIGHTLY=%%A"
+FOR /F "tokens=3" %%A IN ('FINDSTR /R /C:"define MPC_BETA_RELEASE" "include\version.h"') DO (
+  SET "MPCHC_BETA=%%A"
 )
 
-SET "MPCHC_HASH=%MPCHC_HASH:~4,-2%"
-IF DEFINED MPCHC_BRANCH (
-  SET "MPCHC_BRANCH=%MPCHC_BRANCH:~4,-2%"
+SET "MPC_VERSION_REV=%MPC_VERSION_REV:~1,-1%"
+IF "%MPCHC_BRANCH%" NEQ "" (
+  SET "MPCHC_HASH=%MPCHC_HASH:~0,-2%"
+  SET "MPCHC_BRANCH=%MPCHC_BRANCH:~0,-2%"
+) ELSE (
+  SET "MPCHC_HASH=%MPCHC_HASH:~0,-3%"
 )
 
-IF "%MPCHC_NIGHTLY%" NEQ "0" (
+IF "%MPCHC_BETA%" NEQ "0" (
   SET "MPCHC_VER=%MPC_VERSION_MAJOR%.%MPC_VERSION_MINOR%.%MPC_VERSION_PATCH%.%MPC_VERSION_REV%"
 ) ELSE (
   SET "MPCHC_VER=%MPC_VERSION_MAJOR%.%MPC_VERSION_MINOR%.%MPC_VERSION_PATCH%"
@@ -516,24 +510,24 @@ EXIT /B
 TITLE %~nx0 Help
 ECHO.
 ECHO Usage:
-ECHO %~nx0 [Clean^|Build^|Rebuild] [x86^|x64^|Both] [Main^|Resources^|MPCHC^|IconLib^|Translations^|Filters^|All] [Debug^|Release] [Lite] [Packages^|Installer^|7z] [LAVFilters] [Analyze]
+ECHO %~nx0 [Clean^|Build^|Rebuild] [x86^|x64^|Both] [Main^|Resources^|MPCHC^|IconLib^|Translations^|Filters^|All] [Debug^|Release] [Lite] [Packages^|Installer^|7z] [FFmpeg] [VS2010^|VS2012] [Analyze]
 ECHO.
 ECHO Notes: You can also prefix the commands with "-", "--" or "/".
 ECHO        Debug only applies to mpc-hc.sln.
 ECHO        The arguments are not case sensitive and can be ommitted.
 ECHO. & ECHO.
 ECHO Executing %~nx0 without any arguments will use the default ones:
-ECHO "%~nx0 Build Both MPCHC Release"
+ECHO "%~nx0 Build Both MPCHC Release VS2010"
 ECHO. & ECHO.
 ECHO Examples:
-ECHO %~nx0 x86 Resources     -Builds the x86 resources
-ECHO %~nx0 Resources         -Builds both x86 and x64 resources
-ECHO %~nx0 x86               -Builds x86 Main exe and the x86 resources
-ECHO %~nx0 x86 Debug         -Builds x86 Main Debug exe and x86 resources
-ECHO %~nx0 x86 Filters       -Builds x86 Filters
-ECHO %~nx0 x86 All           -Builds x86 Main exe, x86 Filters and the x86 resources
-ECHO %~nx0 x86 Packages      -Builds x86 Main exe, x86 resources and creates the installer and the .7z package
-ECHO %~nx0 x64 LAVFilters 7z -Rebuilds LAVFilters, builds x64 Main exe, x64 resources and creates the .7z package
+ECHO %~nx0 x86 Resources -Builds the x86 resources
+ECHO %~nx0 Resources     -Builds both x86 and x64 resources
+ECHO %~nx0 x86           -Builds x86 Main exe and the x86 resources
+ECHO %~nx0 x86 Debug     -Builds x86 Main Debug exe and x86 resources
+ECHO %~nx0 x86 Filters   -Builds x86 Filters
+ECHO %~nx0 x86 All       -Builds x86 Main exe, x86 Filters and the x86 resources
+ECHO %~nx0 x86 Packages  -Builds x86 Main exe, x86 resources and creates the installer and the .7z package
+ECHO %~nx0 x64 FFmpeg 7z -Rebuilds FFmpeg, builds x64 Main exe, x64 resources and creates the .7z package
 ECHO.
 ENDLOCAL
 EXIT /B
@@ -541,7 +535,7 @@ EXIT /B
 
 :MissingVar
 COLOR 0C
-TITLE Compiling MPC-HC [ERROR]
+TITLE Compiling MPC-HC %COMPILER% [ERROR]
 ECHO Not all build dependencies were found.
 ECHO.
 ECHO See "docs\Compilation.txt" for more information.

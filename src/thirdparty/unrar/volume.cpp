@@ -32,7 +32,6 @@ bool MergeArchive(Archive &Arc,ComprDataIO *DataIO,bool ShowFileName,wchar Comma
   if (DataIO!=NULL)
     DataIO->ProcessedArcSize+=Arc.FileLength();
 
-
   Arc.Close();
 
   wchar NextName[NM];
@@ -84,7 +83,7 @@ bool MergeArchive(Archive &Arc,ComprDataIO *DataIO,bool ShowFileName,wchar Comma
       }
 #else // !RARDLL
 
-#ifndef SFX_MODULE
+#if !defined(SFX_MODULE) && !defined(_WIN_CE)
       if (!RecoveryDone)
       {
         RecVolumesRestore(Cmd,Arc.FileName,true);
@@ -113,7 +112,7 @@ bool MergeArchive(Archive &Arc,ComprDataIO *DataIO,bool ShowFileName,wchar Comma
   
   if (FailedOpen)
   {
-#ifndef SILENT
+#if !defined(SILENT) && !defined(_WIN_CE)
       Log(Arc.FileName,St(MAbsNextVol),NextName);
 #endif
     Arc.Open(Arc.FileName,0);

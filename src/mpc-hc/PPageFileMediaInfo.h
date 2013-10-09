@@ -26,15 +26,18 @@ class CPPageFileMediaInfo : public CPropertyPage
 {
     DECLARE_DYNAMIC(CPPageFileMediaInfo)
 
+private:
+    CComPtr<IFilterGraph> m_pFG;
+
 public:
-    CPPageFileMediaInfo(CString path, IFileSourceFilter* pFSF);
+    CPPageFileMediaInfo(CString fn, IFilterGraph* pFG);
     virtual ~CPPageFileMediaInfo();
 
     // Dialog Data
     enum { IDD = IDD_FILEMEDIAINFO };
 
     CEdit m_mediainfo;
-    CString m_fn, m_path;
+    CString m_fn;
     CFont* m_pCFont;
     CString MI_Text;
 
@@ -49,6 +52,4 @@ protected:
 
 public:
     afx_msg void OnShowWindow(BOOL bShow, UINT nStatus);
-
-    bool HasInfo() const { return !MI_Text.IsEmpty(); };
 };

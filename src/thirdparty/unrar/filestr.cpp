@@ -17,7 +17,7 @@ bool ReadTextFile(
 
   if (Name!=NULL)
     if (Config)
-      GetConfigName(Name,FileName,ASIZE(FileName),true,false);
+      GetConfigName(Name,FileName,ASIZE(FileName),true);
     else
       wcsncpyz(FileName,Name,ASIZE(FileName));
 
@@ -93,7 +93,7 @@ bool ReadTextFile(
         }
 
         bool Expanded=false;
-#ifdef _WIN_ALL
+#if defined(_WIN_ALL) && !defined(_WIN_CE)
         if (ExpandEnvStr && *CurStr=='%')
         {
           // Expanding environment variables in Windows version.

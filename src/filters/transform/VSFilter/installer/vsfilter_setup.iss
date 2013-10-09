@@ -26,6 +26,7 @@
 
 ; If you want to compile the 64-bit version define "x64Build" (uncomment the define below or use build.bat)
 #define sse_required
+;#define VS2012
 ;#define x64Build
 
 
@@ -37,13 +38,17 @@
 #include top_dir + "\include\version.h"
 
 #define copyright_str   "2001-2013"
-#define app_name        "VSFilter"
+#define app_name        "DirectVobSub"
 
 #define app_version     str(VerMajor) + "." + str(VerMinor) + "." + str(MPC_VERSION_REV)
 #define app_vername     = app_name + " " + app_version
 #define quick_launch    "{userappdata}\Microsoft\Internet Explorer\Quick Launch"
 
-#define base_bindir     = top_dir + "\bin"
+#if defined(VS2012)
+  #define base_bindir   = top_dir + "\bin12"
+#else
+  #define base_bindir   = top_dir + "\bin"
+#endif
 
 #ifdef x64Build
   #define bindir        = base_bindir + "\Filters_x64"
@@ -57,14 +62,18 @@
   #error Compile VSFilter first
 #endif
 
-#if MPC_NIGHTLY_RELEASE
+#if defined(VS2012)
+  #define OutFilename   = OutFilename + ".VS2012"
+#endif
+
+#if MPC_BETA_RELEASE
   #define FullAppNameVer = app_vername + " " + "(" + str(MPCHC_HASH) + ")"
 #else
   #define FullAppNameVer = app_vername
 #endif
 
-#if MPC_NIGHTLY_RELEASE
-  #define FullAppNameVer = FullAppNameVer + " " + str(MPC_VERSION_NIGHTLY)
+#if MPC_BETA_RELEASE
+  #define FullAppNameVer = FullAppNameVer + " " + str(MPC_VERSION_BETA)
 #endif
 #ifdef x64Build
   #define FullAppNameVer = FullAppNameVer + " " + "(64-bit)"
@@ -114,9 +123,6 @@ ArchitecturesInstallIn64BitMode=x64
 #else
 AppID=vsfilter
 #endif
-#ifexist top_dir + "\signinfo.txt"
-SignTool=MySignTool
-#endif
 
 
 [Languages]
@@ -163,7 +169,7 @@ Name: {group}\Uninstall;           Filename: {uninstallexe}
 
 
 [Run]
-Filename: {sys}\rundll32.exe; Parameters: VSFilter.dll,DirectVobSub; Description: Configure VSFilter; WorkingDir: {app}; Flags: nowait postinstall skipifsilent unchecked
+Filename: {sys}\rundll32.exe; Parameters: VSFilter.dll,DirectVobSub; Description: Configure DirectVobSub; WorkingDir: {app}; Flags: nowait postinstall skipifsilent unchecked
 
 
 [Code]

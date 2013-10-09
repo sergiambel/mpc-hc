@@ -186,6 +186,7 @@ CPPageDVD::CPPageDVD()
     , m_idAudioLang(0)
     , m_idSubtitlesLang(0)
     , m_dvdpath(_T(""))
+    , m_fAutoSpeakerConf(FALSE)
     , m_fClosedCaptions(FALSE)
 {
 }
@@ -203,6 +204,7 @@ void CPPageDVD::DoDataExchange(CDataExchange* pDX)
     DDX_Text(pDX, IDC_DVDPATH, m_dvdpath);
     DDX_Control(pDX, IDC_DVDPATH, m_dvdpathctrl);
     DDX_Control(pDX, IDC_BUTTON1, m_dvdpathselctrl);
+    DDX_Check(pDX, IDC_CHECK1, m_fAutoSpeakerConf);
     DDX_Check(pDX, IDC_CHECK2, m_fClosedCaptions);
 }
 
@@ -247,6 +249,7 @@ BOOL CPPageDVD::OnInitDialog()
     m_idMenuLang = s.idMenuLang;
     m_idAudioLang = s.idAudioLang;
     m_idSubtitlesLang = s.idSubtitlesLang;
+    m_fAutoSpeakerConf = s.fAutoSpeakerConf;
     m_fClosedCaptions = s.fClosedCaptions;
 
     UpdateData(FALSE);
@@ -273,6 +276,7 @@ BOOL CPPageDVD::OnApply()
     s.idMenuLang = m_idMenuLang;
     s.idAudioLang = m_idAudioLang;
     s.idSubtitlesLang = m_idSubtitlesLang;
+    s.fAutoSpeakerConf = !!m_fAutoSpeakerConf;
     s.fClosedCaptions = !!m_fClosedCaptions;
 
     ((CMainFrame*)AfxGetMyApp()->GetMainWnd())->SetClosedCaptions(s.fClosedCaptions);

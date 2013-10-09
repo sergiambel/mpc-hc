@@ -285,7 +285,7 @@ void ZtringListList::Write(const Ztring &ToWrite)
 {
     clear();
 
-    if (ToWrite.empty())
+    if (!&ToWrite || !ToWrite.size())
         return;
 
     size_type PosC=0;

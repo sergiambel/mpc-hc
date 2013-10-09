@@ -31,6 +31,7 @@
 #include "DSUtil.h"
 #include "GolombBuffer.h"
 #include "../filters/switcher/AudioSwitcher/AudioSwitcher.h"
+#include "../filters/transform/MPCVideoDec/MPCVideoDecFilter.h"
 #include "moreuuids.h"
 #include "mplayerc.h"
 #include "FGManagerBDA.h"
@@ -299,7 +300,7 @@ CFGManagerBDA::CFGManagerBDA(LPCTSTR pName, LPUNKNOWN pUnk, HWND hWnd)
     //  - audio switcher
     m_transform.AddHead(DEBUG_NEW CFGFilterRegistry(__uuidof(CAudioSwitcherFilter), MERIT64_DO_NOT_USE));
     //  - internal video decoder and ffdshow DXVA video decoder (cf ticket #730)
-    m_transform.AddHead(DEBUG_NEW CFGFilterRegistry(CLSID_MPCVideoDecoder, MERIT64_DO_NOT_USE));
+    m_transform.AddHead(DEBUG_NEW CFGFilterRegistry(__uuidof(CMPCVideoDecFilter), MERIT64_DO_NOT_USE));
     m_transform.AddHead(DEBUG_NEW CFGFilterRegistry(CLSID_FFDShowDXVADecoder, MERIT64_DO_NOT_USE));
     //  - Microsoft DTV-DVD Audio Decoder
     m_transform.AddHead(DEBUG_NEW CFGFilterRegistry(CLSID_MSDVTDVDAudioDecoder, MERIT64_DO_NOT_USE));
@@ -493,7 +494,7 @@ STDMETHODIMP CFGManagerBDA::RenderFile(LPCWSTR lpcwstrFile, LPCWSTR lpcwstrPlayL
     }
     CheckNoLog(AddFilter(m_pDemux, _T("MPEG-2 Demultiplexer")));
     if (FAILED(ConnectFilters(pTuner, m_pDemux))) { // Separate receiver is required
-        if (FAILED(hr = CreateKSFilter(&pReceiver, KSCATEGORY_BDA_RECEIVER_COMPONENT, s.strBDAReceiver))) {
+        if (FAILED(hr = CreateKSFilter(&pReceiver, KSCATEGORY_BDA_RECEIVER_COMPONENT,  s.strBDAReceiver))) {
             MessageBox(AfxGetMyApp()->GetMainWnd()->m_hWnd, ResStr(IDS_BDA_ERROR_CREATE_RECEIVER), ResStr(IDS_BDA_ERROR), MB_ICONERROR | MB_OK);
             TRACE(_T("BDA: Receiver creation: 0x%08x\n"), hr);
             return hr;
@@ -847,8 +848,7 @@ STDMETHODIMP CFGManagerBDA::Info(long lIndex, AM_MEDIA_TYPE** ppmt, DWORD* pdwFl
                 str = StreamTypeToName(pStreamInfo->PesType);
 
                 if (!pStreamInfo->Language.IsEmpty() && pStreamInfo->GetLCID() == 0) {
-                    // Try to convert language code even if LCID was not found.
-                    str += _T(" [") + ISO6392ToLanguage(CStringA(pStreamInfo->Language)) + _T("]");
+                    str += _T(" [") + pStreamInfo->Language + _T("]");
                 }
 
                 *ppszName = (WCHAR*)CoTaskMemAlloc((str.GetLength() + 1) * sizeof(WCHAR));
@@ -1113,7 +1113,7 @@ HRESULT CFGManagerBDA::SwitchStream(DVB_STREAM_TYPE nOldType, DVB_STREAM_TYPE nN
     CComPtr<IPin> pInPin;
     if (pOldOut && pFGNew) {
         pOldOut->ConnectedTo(&pInPin);
-        CComPtr<IPin> pNewOut = GetFirstPin(pFGNew, PINDIR_OUTPUT);
+        CComPtr<IPin> pNewOut = GetFirstPin(pFGNew,  PINDIR_OUTPUT);
         CComPtr<IPinConnection> pNewOutDynamic;
 
         if ((nNewType != DVB_H264) && (nNewType != DVB_MPV) && GetState() != State_Stopped) {

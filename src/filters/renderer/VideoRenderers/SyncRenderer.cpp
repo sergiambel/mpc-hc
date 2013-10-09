@@ -438,7 +438,6 @@ HRESULT CBaseAP::CreateDXDevice(CString& _Error)
     m_dD3DRefreshCycle = 1000.0 / (double)m_uD3DRefreshRate; // In ms
     m_ScreenSize.SetSize(d3ddm.Width, d3ddm.Height);
     m_pGenlock->SetDisplayResolution(d3ddm.Width, d3ddm.Height);
-    CSize szDesktopSize(GetSystemMetrics(SM_CXVIRTUALSCREEN), GetSystemMetrics(SM_CYVIRTUALSCREEN));
 
     BOOL bCompositionEnabled = false;
     if (m_pDwmIsCompositionEnabled) {
@@ -514,8 +513,8 @@ HRESULT CBaseAP::CreateDXDevice(CString& _Error)
         pp.SwapEffect = D3DSWAPEFFECT_COPY;
         pp.Flags = D3DPRESENTFLAG_VIDEO;
         pp.BackBufferCount = 1;
-        pp.BackBufferWidth = szDesktopSize.cx;
-        pp.BackBufferHeight = szDesktopSize.cy;
+        pp.BackBufferWidth = d3ddm.Width;
+        pp.BackBufferHeight = d3ddm.Height;
         m_BackbufferType = d3ddm.Format;
         m_DisplayType = d3ddm.Format;
         m_bHighColorResolution = r.m_AdvRendSets.bEVRHighColorResolution;
@@ -586,7 +585,7 @@ HRESULT CBaseAP::CreateDXDevice(CString& _Error)
     switch (GetRenderersSettings().nSPCMaxRes) {
         case 0:
         default:
-            size = m_bIsFullscreen ? m_ScreenSize : szDesktopSize;
+            size = m_ScreenSize;
             break;
         case 1:
             size.SetSize(1024, 768);
@@ -1269,10 +1268,10 @@ HRESULT CBaseAP::TextureResizeBicubic1pass(IDirect3DTexture9* pTexture, const Ve
     float ty1 = (float)SrcRect.bottom;
 
     MYD3DVERTEX<1> v[] = {
-        {dst[0].x, dst[0].y, dst[0].z, 1.0f / dst[0].z, tx0, ty0},
-        {dst[1].x, dst[1].y, dst[1].z, 1.0f / dst[1].z, tx1, ty0},
-        {dst[2].x, dst[2].y, dst[2].z, 1.0f / dst[2].z, tx0, ty1},
-        {dst[3].x, dst[3].y, dst[3].z, 1.0f / dst[3].z, tx1, ty1},
+        {dst[0].x, dst[0].y, dst[0].z, 1.0f / dst[0].z,  tx0, ty0},
+        {dst[1].x, dst[1].y, dst[1].z, 1.0f / dst[1].z,  tx1, ty0},
+        {dst[2].x, dst[2].y, dst[2].z, 1.0f / dst[2].z,  tx0, ty1},
+        {dst[3].x, dst[3].y, dst[3].z, 1.0f / dst[3].z,  tx1, ty1},
     };
     AdjustQuad(v, 1.0, 1.0);
     hr = m_pD3DDev->SetTexture(0, pTexture);
@@ -1630,7 +1629,7 @@ STDMETHODIMP_(bool) CBaseAP::Paint(bool fAll)
                     hr = m_pD3DDev->SetPixelShader(Shader.m_pPixelShader);
                     TextureCopy(m_pVideoTexture[src]);
 
-                    src = dst;
+                    src     = dst;
                     if (++dst >= m_nDXSurface + 2) {
                         dst = m_nDXSurface;
                     }
@@ -1757,9 +1756,9 @@ STDMETHODIMP_(bool) CBaseAP::Paint(bool fAll)
     AlphaBltSubPic(rSrcPri.Size());
     if (m_VMR9AlphaBitmap.dwFlags & VMRBITMAP_UPDATE) {
         CAutoLock BitMapLock(&m_VMR9AlphaBitmapLock);
-        CRect rcSrc(m_VMR9AlphaBitmap.rSrc);
-        m_pOSDTexture = nullptr;
-        m_pOSDSurface = nullptr;
+        CRect       rcSrc(m_VMR9AlphaBitmap.rSrc);
+        m_pOSDTexture   = nullptr;
+        m_pOSDSurface   = nullptr;
         if ((m_VMR9AlphaBitmap.dwFlags & VMRBITMAP_DISABLE) == 0 && (BYTE*)m_VMR9AlphaBitmapData) {
             if ((m_pD3DXLoadSurfaceFromMemory != nullptr) &&
                     SUCCEEDED(hr = m_pD3DDev->CreateTexture(
@@ -2700,7 +2699,7 @@ STDMETHODIMP CSyncAP::NonDelegatingQueryInterface(REFIID riid, void** ppv)
 }
 
 // IMFClockStateSink
-STDMETHODIMP CSyncAP::OnClockStart(MFTIME hnsSystemTime, LONGLONG llClockStartOffset)
+STDMETHODIMP CSyncAP::OnClockStart(MFTIME hnsSystemTime,  LONGLONG llClockStartOffset)
 {
     m_nRenderState = Started;
     return S_OK;
@@ -2971,16 +2970,12 @@ HRESULT CSyncAP::CreateProposedOutputType(IMFMediaType* pMixerType, IMFMediaType
     VideoFormat = (MFVIDEOFORMAT*)pAMMedia->pbFormat;
     hr = pfMFCreateVideoMediaType(VideoFormat, &m_pMediaType);
 
-    CSize videoSize;
-    videoSize.cx = VideoFormat->videoInfo.dwWidth;
-    videoSize.cy = VideoFormat->videoInfo.dwHeight;
-    CSize aspectRatio;
-    aspectRatio.cx = VideoFormat->videoInfo.PixelAspectRatio.Numerator;
-    aspectRatio.cy = VideoFormat->videoInfo.PixelAspectRatio.Denominator;
+    m_AspectRatio.cx = VideoFormat->videoInfo.PixelAspectRatio.Numerator;
+    m_AspectRatio.cy = VideoFormat->videoInfo.PixelAspectRatio.Denominator;
 
     if (SUCCEEDED(hr)) {
-        i64Size.HighPart = videoSize.cx;
-        i64Size.LowPart  = videoSize.cy;
+        i64Size.HighPart = VideoFormat->videoInfo.dwWidth;
+        i64Size.LowPart  = VideoFormat->videoInfo.dwHeight;
         m_pMediaType->SetUINT64(MF_MT_FRAME_SIZE, i64Size.QuadPart);
         m_pMediaType->SetUINT32(MF_MT_PAN_SCAN_ENABLED, 0);
         const CRenderersSettings& r = GetRenderersSettings();
@@ -2992,30 +2987,34 @@ HRESULT CSyncAP::CreateProposedOutputType(IMFMediaType* pMixerType, IMFMediaType
         }
 
         m_LastSetOutputRange = r.m_AdvRendSets.iEVROutputRange;
-        i64Size.HighPart = aspectRatio.cx;
-        i64Size.LowPart  = aspectRatio.cy;
+        i64Size.HighPart = m_AspectRatio.cx;
+        i64Size.LowPart  = m_AspectRatio.cy;
         m_pMediaType->SetUINT64(MF_MT_PIXEL_ASPECT_RATIO, i64Size.QuadPart);
 
-        MFVideoArea Area = GetArea(0, 0, videoSize.cx, videoSize.cy);
+        MFVideoArea Area = GetArea(0, 0, VideoFormat->videoInfo.dwWidth, VideoFormat->videoInfo.dwHeight);
         m_pMediaType->SetBlob(MF_MT_GEOMETRIC_APERTURE, (UINT8*)&Area, sizeof(MFVideoArea));
     }
 
-    aspectRatio.cx *= videoSize.cx;
-    aspectRatio.cy *= videoSize.cy;
+    m_AspectRatio.cx *= VideoFormat->videoInfo.dwWidth;
+    m_AspectRatio.cy *= VideoFormat->videoInfo.dwHeight;
 
-    int gcd = GCD(aspectRatio.cx, aspectRatio.cy);
-    if (gcd > 1) {
-        aspectRatio.cx /= gcd;
-        aspectRatio.cy /= gcd;
-    }
+    bool bDoneSomething = true;
 
-    if (videoSize != m_NativeVideoSize || aspectRatio != m_AspectRatio) {
-        m_NativeVideoSize = videoSize;
-        m_AspectRatio = aspectRatio;
-
-        // Notify the graph about the change
-        if (m_pSink) {
-            m_pSink->Notify(EC_VIDEO_SIZE_CHANGED, MAKELPARAM(m_NativeVideoSize.cx, m_NativeVideoSize.cy), 0);
+    if (m_AspectRatio.cx >= 1 && m_AspectRatio.cy >= 1) {
+        while (bDoneSomething) {
+            bDoneSomething = false;
+            int MinNum = min(m_AspectRatio.cx, m_AspectRatio.cy);
+            int i;
+            for (i = 2; i < MinNum + 1; ++i) {
+                if (m_AspectRatio.cx % i == 0 && m_AspectRatio.cy % i == 0) {
+                    break;
+                }
+            }
+            if (i != MinNum + 1) {
+                m_AspectRatio.cx = m_AspectRatio.cx / i;
+                m_AspectRatio.cy = m_AspectRatio.cy / i;
+                bDoneSomething = true;
+            }
         }
     }
 
@@ -4216,12 +4215,12 @@ STDMETHODIMP CSyncRenderer::NonDelegatingQueryInterface(REFIID riid, void** ppv)
 }
 
 CGenlock::CGenlock(double target, double limit, int lineD, int colD, double clockD, UINT mon):
-    targetSyncOffset(target),   // Target sync offset, typically around 10 ms
-    controlLimit(limit),        // How much sync offset is allowed to drift from target sync offset before control kicks in
-    lineDelta(lineD),           // Number of rows used in display frequency adjustment, typically 1 (one)
-    columnDelta(colD),          // Number of columns used in display frequency adjustment, typically 1 - 2
-    cycleDelta(clockD),         // Delta used in clock speed adjustment. In fractions of 1.0. Typically around 0.001
-    monitor(mon)                // The monitor to be adjusted if the display refresh rate is the controlled parameter
+    targetSyncOffset(target), // Target sync offset, typically around 10 ms
+    controlLimit(limit), // How much sync offset is allowed to drift from target sync offset before control kicks in
+    lineDelta(lineD), // Number of rows used in display frequency adjustment, typically 1 (one)
+    columnDelta(colD),  // Number of columns used in display frequency adjustment, typically 1 - 2
+    cycleDelta(clockD),  // Delta used in clock speed adjustment. In fractions of 1.0. Typically around 0.001
+    monitor(mon) // The monitor to be adjusted if the display refresh rate is the controlled parameter
 {
     lowSyncOffset = targetSyncOffset - controlLimit;
     highSyncOffset = targetSyncOffset + controlLimit;

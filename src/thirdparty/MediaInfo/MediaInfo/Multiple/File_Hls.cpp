@@ -137,8 +137,6 @@ bool File_Hls::FileHeader_Begin()
     Fill(Stream_General, 0, General_Format, "HLS");
 
     ReferenceFiles=new File__ReferenceFilesHelper(this, Config);
-    if (!IsSub)
-        ReferenceFiles->ContainerHasNoId=true;
 
     File__ReferenceFilesHelper::reference ReferenceFile;
 
@@ -176,8 +174,6 @@ bool File_Hls::FileHeader_Begin()
         ReferenceFiles->References.push_back(ReferenceFile);
         ReferenceFiles->TestContinuousFileNames=true;
     }
-
-    Element_Offset=File_Size;
 
     //All should be OK...
     return true;

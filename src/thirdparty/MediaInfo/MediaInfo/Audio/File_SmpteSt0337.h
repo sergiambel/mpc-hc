@@ -32,7 +32,6 @@ public :
     // In
     int8u   Container_Bits;
     int8u   Endianness;
-    bool    Aligned;
 
     // Constructor/Destructor
     File_SmpteSt0337();
@@ -71,7 +70,6 @@ private :
     std::map<int64u, int64u> FrameSizes;
     int64u  GuardBand_Before;
     int64u  GuardBand_After;
-    size_t  NullPadding_Size;
 
     // Parser
     File__Analyze* Parser;

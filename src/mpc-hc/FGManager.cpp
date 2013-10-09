@@ -42,6 +42,35 @@
 #include <ksproxy.h>
 #include "moreuuids.h"
 
+class CFGVideoDecoderInternal : public CFGFilterInternal<CMPCVideoDecFilter>
+{
+    CAutoPtr<bool> m_FFMpegFilters;
+    CAutoPtr<bool> m_DXVAFilters;
+
+public:
+    CFGVideoDecoderInternal(CStringW name = L"", UINT64 merit = MERIT64_DO_USE, CAutoPtr<bool> FFMpegFilters = CAutoPtr<bool>(), CAutoPtr<bool> DXVAFilters = CAutoPtr<bool>())
+        : CFGFilterInternal<CMPCVideoDecFilter>(name, merit)
+        , m_FFMpegFilters(FFMpegFilters)
+        , m_DXVAFilters(DXVAFilters) {}
+
+    HRESULT Create(IBaseFilter** ppBF, CInterfaceList<IUnknown, &IID_IUnknown>& pUnks) {
+        CheckPointer(ppBF, E_POINTER);
+
+        HRESULT hr = S_OK;
+        CComPtr<CMPCVideoDecFilter> pBF = DEBUG_NEW CMPCVideoDecFilter(nullptr, &hr);
+        if (FAILED(hr)) {
+            return hr;
+        }
+
+        pBF->SetFFmpegFilters(m_FFMpegFilters);
+        pBF->SetDXVAFilters(m_DXVAFilters);
+
+        *ppBF = pBF.Detach();
+
+        return hr;
+    }
+};
+
 //
 // CFGManager
 //
@@ -1341,18 +1370,8 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk)
 
     const bool* src = s.SrcFilters;
     const bool* tra = s.TraFilters;
-
-    // Reset LAVFilters internal instances
-    CFGFilterLAV::ResetInternalInstances();
-
-    // Prepare LAVFilters wrappers
-    CAutoPtr<CFGFilterLAVSplitterBase> pFGLAVSplitterSource(static_cast<CFGFilterLAVSplitterBase*>(CFGFilterLAV::CreateFilter(CFGFilterLAV::SPLITTER_SOURCE)));
-    CAutoPtr<CFGFilterLAVSplitterBase> pFGLAVSplitter(static_cast<CFGFilterLAVSplitterBase*>(CFGFilterLAV::CreateFilter(CFGFilterLAV::SPLITTER, MERIT64_ABOVE_DSHOW)));
-    CAutoPtr<CFGFilterLAVSplitterBase> pFGLAVSplitterLM(static_cast<CFGFilterLAVSplitterBase*>(CFGFilterLAV::CreateFilter(CFGFilterLAV::SPLITTER, MERIT64_DO_USE, true)));
-    CAutoPtr<CFGFilterLAV> pFGLAVVideo(CFGFilterLAV::CreateFilter(CFGFilterLAV::VIDEO_DECODER, MERIT64_ABOVE_DSHOW));
-    CAutoPtr<CFGFilterLAV> pFGLAVVideoLM(CFGFilterLAV::CreateFilter(CFGFilterLAV::VIDEO_DECODER, MERIT64_DO_USE, true));
-    CAutoPtr<CFGFilterLAV> pFGLAVAudio(CFGFilterLAV::CreateFilter(CFGFilterLAV::AUDIO_DECODER, MERIT64_ABOVE_DSHOW));
-    CAutoPtr<CFGFilterLAV> pFGLAVAudioLM(CFGFilterLAV::CreateFilter(CFGFilterLAV::AUDIO_DECODER, MERIT64_DO_USE, true));
+    const bool* dxva_filters = s.DXVAFilters;
+    const bool* ffmpeg_filters = s.FFmpegFilters;
 
     // Source filters
 
@@ -1361,6 +1380,98 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk)
         pFGF = DEBUG_NEW CFGFilterInternal<CRARFileSource>();
         pFGF->m_chkbytes.AddTail(_T("0,7,,526172211A0700"));
         pFGF->m_extensions.AddTail(_T(".rar"));
+        m_source.AddTail(pFGF);
+    }
+#endif
+
+#if INTERNAL_SOURCEFILTER_SHOUTCAST
+    if (src[SRC_SHOUTCAST]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CShoutcastSource>();
+        pFGF->m_protocols.AddTail(_T("http"));
+        m_source.AddTail(pFGF);
+    }
+#endif
+
+#if INTERNAL_SOURCEFILTER_UDP
+    // if (src[SRC_UDP])
+    {
+        pFGF = DEBUG_NEW CFGFilterInternal<CUDPReader>();
+        pFGF->m_protocols.AddTail(_T("udp"));
+        m_source.AddTail(pFGF);
+    }
+#endif
+
+#if INTERNAL_SOURCEFILTER_AVI
+    if (src[SRC_AVI]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CAviSourceFilter>();
+        pFGF->m_chkbytes.AddTail(_T("0,4,,52494646,8,4,,41564920"));
+        pFGF->m_chkbytes.AddTail(_T("0,4,,52494646,8,4,,41564958"));
+        m_source.AddTail(pFGF);
+    }
+#endif
+
+#if INTERNAL_SOURCEFILTER_MP4
+    if (src[SRC_MP4]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CMP4SourceFilter>();
+        pFGF->m_chkbytes.AddTail(_T("4,4,,66747970")); // ftyp
+        pFGF->m_chkbytes.AddTail(_T("4,4,,6d6f6f76")); // moov
+        pFGF->m_chkbytes.AddTail(_T("4,4,,6d646174")); // mdat
+        pFGF->m_chkbytes.AddTail(_T("4,4,,736b6970")); // skip
+        pFGF->m_chkbytes.AddTail(_T("4,12,ffffffff00000000ffffffff,77696465027fe3706d646174")); // wide ? mdat
+        pFGF->m_chkbytes.AddTail(_T("3,3,,000001")); // raw mpeg4 video
+        pFGF->m_extensions.AddTail(_T(".mov"));
+        m_source.AddTail(pFGF);
+    }
+#endif
+
+#if INTERNAL_SOURCEFILTER_FLV
+    if (src[SRC_FLV]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CFLVSourceFilter>();
+        pFGF->m_chkbytes.AddTail(_T("0,4,,464C5601")); // FLV (v1)
+        m_source.AddTail(pFGF);
+    }
+#endif
+
+#if INTERNAL_SOURCEFILTER_MATROSKA
+    if (src[SRC_MATROSKA]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CMatroskaSourceFilter>();
+        pFGF->m_chkbytes.AddTail(_T("0,4,,1A45DFA3"));
+        m_source.AddTail(pFGF);
+    }
+#endif
+
+#if INTERNAL_SOURCEFILTER_REALMEDIA
+    if (src[SRC_REALMEDIA]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CRealMediaSourceFilter>();
+        pFGF->m_chkbytes.AddTail(_T("0,4,,2E524D46"));
+        m_source.AddTail(pFGF);
+    }
+#endif
+
+#if INTERNAL_SOURCEFILTER_DSM
+    if (src[SRC_DSM]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CDSMSourceFilter>();
+        pFGF->m_chkbytes.AddTail(_T("0,4,,44534D53"));
+        m_source.AddTail(pFGF);
+    }
+#endif
+
+#if INTERNAL_SOURCEFILTER_FLIC
+    if (src[SRC_FLIC]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CFLICSource>();
+        pFGF->m_chkbytes.AddTail(_T("4,2,,11AF"));
+        pFGF->m_chkbytes.AddTail(_T("4,2,,12AF"));
+        pFGF->m_extensions.AddTail(_T(".fli"));
+        pFGF->m_extensions.AddTail(_T(".flc"));
+        m_source.AddTail(pFGF);
+    }
+#endif
+
+#if INTERNAL_SOURCEFILTER_FLAC
+    if (src[SRC_FLAC]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CFLACSource>();
+        pFGF->m_chkbytes.AddTail(_T("0,4,,664C6143"));
+        pFGF->m_extensions.AddTail(_T(".flac"));
         m_source.AddTail(pFGF);
     }
 #endif
@@ -1389,175 +1500,142 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk)
     }
 #endif
 
-#if INTERNAL_SOURCEFILTER_DSM
-    if (src[SRC_DSM]) {
-        pFGF = DEBUG_NEW CFGFilterInternal<CDSMSourceFilter>();
-        pFGF->m_chkbytes.AddTail(_T("0,4,,44534D53"));
-        m_source.AddTail(pFGF);
+#if INTERNAL_SOURCEFILTER_DVSOURCE
+    // TODOX64 : fix DVSource internal filter
+#ifndef _WIN64
+    __if_exists(CD2VSource) {
+        if (src[SRC_D2V]) {
+            pFGF = DEBUG_NEW CFGFilterInternal<CD2VSource>();
+            pFGF->m_chkbytes.AddTail(_T("0,18,,4456443241564950726F6A65637446696C65"));
+            pFGF->m_extensions.AddTail(_T(".d2v"));
+            m_source.AddTail(pFGF);
+        }
     }
 #endif
-
-#if INTERNAL_SOURCEFILTER_AVI
-    if (src[SRC_AVI]) {
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,4,,52494646,8,4,,41564920"));
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,4,,52494646,8,4,,41564958"));
-        pFGLAVSplitterSource->AddFormat("avi");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_MP4
-    if (src[SRC_MP4]) {
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("4,4,,66747970")); // ftyp
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("4,4,,6d6f6f76")); // moov
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("4,4,,6d646174")); // mdat
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("4,4,,736b6970")); // skip
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("4,12,ffffffff00000000ffffffff,77696465027fe3706d646174")); // wide ? mdat
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("3,3,,000001")); // raw mpeg4 video
-        pFGLAVSplitterSource->m_extensions.AddTail(_T(".mov"));
-        pFGLAVSplitterSource->AddFormat("mp4");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_FLV
-    if (src[SRC_FLV]) {
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,4,,464C5601")); // FLV (v1)
-        pFGLAVSplitterSource->AddFormat("flv");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_MATROSKA
-    if (src[SRC_MATROSKA]) {
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,4,,1A45DFA3"));
-        pFGLAVSplitterSource->AddFormat("matroska");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_REALMEDIA
-    if (src[SRC_REALMEDIA]) {
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,4,,2E524D46"));
-        pFGLAVSplitterSource->AddFormat("rm");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_FLIC
-    if (src[SRC_FLIC]) {
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("4,2,,11AF"));
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("4,2,,12AF"));
-        pFGLAVSplitterSource->m_extensions.AddTail(_T(".fli"));
-        pFGLAVSplitterSource->m_extensions.AddTail(_T(".flc"));
-        pFGLAVSplitterSource->AddFormat("flic");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_FLAC
-    if (src[SRC_FLAC]) {
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,4,,664C6143"));
-        pFGLAVSplitterSource->m_extensions.AddTail(_T(".flac"));
-        pFGLAVSplitterSource->AddFormat("flac");
-    }
 #endif
 
 #if INTERNAL_SOURCEFILTER_OGG
     if (src[SRC_OGG]) {
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,4,,4F676753"));
-        pFGLAVSplitterSource->AddFormat("ogg");
+        pFGF = DEBUG_NEW CFGFilterInternal<COggSourceFilter>();
+        pFGF->m_chkbytes.AddTail(_T("0,4,,4F676753"));
+        m_source.AddTail(pFGF);
     }
 #endif
 
 #if INTERNAL_SOURCEFILTER_MPEG
     if (src[SRC_MPEG]) {
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,16,FFFFFFFFF100010001800001FFFFFFFF,000001BA2100010001800001000001BB"));
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,5,FFFFFFFFC0,000001BA40"));
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,1,,47,188,1,,47,376,1,,47"));
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("4,1,,47,196,1,,47,388,1,,47"));
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,4,,54467263,1660,1,,47"));
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,8,fffffc00ffe00000,4156000055000000"));
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,8,,4D504C5330323030"));  // MPLS0200
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,8,,4D504C5330313030"));  // MPLS0100
-        pFGLAVSplitterSource->m_extensions.AddTail(_T(".ts")); // for some broken .ts
-        pFGLAVSplitterSource->AddFormat("mpeg");
-        pFGLAVSplitterSource->AddFormat("mpegts");
-        pFGLAVSplitterSource->AddFormat("mpegraw");
+        pFGF = DEBUG_NEW CFGFilterInternal<CMpegSourceFilter>();
+        pFGF->m_chkbytes.AddTail(_T("0,16,FFFFFFFFF100010001800001FFFFFFFF,000001BA2100010001800001000001BB"));
+        pFGF->m_chkbytes.AddTail(_T("0,5,FFFFFFFFC0,000001BA40"));
+        pFGF->m_chkbytes.AddTail(_T("0,1,,47,188,1,,47,376,1,,47"));
+        pFGF->m_chkbytes.AddTail(_T("4,1,,47,196,1,,47,388,1,,47"));
+        pFGF->m_chkbytes.AddTail(_T("0,4,,54467263,1660,1,,47"));
+        pFGF->m_chkbytes.AddTail(_T("0,8,fffffc00ffe00000,4156000055000000"));
+        pFGF->m_chkbytes.AddTail(_T("0,8,,4D504C5330323030"));  // MPLS0200
+        pFGF->m_chkbytes.AddTail(_T("0,8,,4D504C5330313030"));  // MPLS0100
+        pFGF->m_extensions.AddTail(_T(".ts")); // for some broken .ts
+        m_source.AddTail(pFGF);
     }
 #endif
 
 #if INTERNAL_SOURCEFILTER_DTSAC3
     if (src[SRC_DTSAC3]) {
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,4,,7FFE8001"));                      // DTS
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,4,,fE7f0180"));                      // DTS LE
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,2,,0B77"));                          // AC3, E-AC3
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,4,,52494646,8,8,,57415645666D7420"));// RIFFxxxxWAVEfmt_ for DTSWAV
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("4,4,,F8726FBB"));                      // MLP
-        pFGLAVSplitterSource->m_extensions.AddTail(_T(".ac3"));
-        pFGLAVSplitterSource->m_extensions.AddTail(_T(".dts"));
-        pFGLAVSplitterSource->m_extensions.AddTail(_T(".eac3"));
-        pFGLAVSplitterSource->AddFormat("ac3");
-        pFGLAVSplitterSource->AddFormat("dts");
-        pFGLAVSplitterSource->AddFormat("dtshd");
-        pFGLAVSplitterSource->AddFormat("eac3");
+        pFGF = DEBUG_NEW CFGFilterInternal<CDTSAC3Source>();
+        pFGF->m_chkbytes.AddTail(_T("0,4,,7FFE8001"));                      // DTS
+        pFGF->m_chkbytes.AddTail(_T("0,4,,fE7f0180"));                      // DTS LE
+        pFGF->m_chkbytes.AddTail(_T("0,2,,0B77"));                          // AC3, E-AC3
+        pFGF->m_chkbytes.AddTail(_T("0,4,,52494646,8,8,,57415645666D7420"));// RIFFxxxxWAVEfmt_ for DTSWAV
+        pFGF->m_chkbytes.AddTail(_T("4,4,,F8726FBB"));                      // MLP
+        pFGF->m_extensions.AddTail(_T(".ac3"));
+        pFGF->m_extensions.AddTail(_T(".dts"));
+        pFGF->m_extensions.AddTail(_T(".eac3"));
+        m_source.AddTail(pFGF);
     }
 #endif
 
 #if INTERNAL_SOURCEFILTER_MPEGAUDIO
     if (src[SRC_MPA]) {
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,2,FFE0,FFE0"));
-        pFGLAVSplitterSource->m_chkbytes.AddTail(_T("0,10,FFFFFF00000080808080,49443300000000000000"));
-        pFGLAVSplitterSource->AddFormat("mp3");
+        pFGF = DEBUG_NEW CFGFilterInternal<CMpaSourceFilter>();
+        pFGF->m_chkbytes.AddTail(_T("0,2,FFE0,FFE0"));
+        pFGF->m_chkbytes.AddTail(_T("0,10,FFFFFF00000080808080,49443300000000000000"));
+        m_source.AddTail(pFGF);
     }
 #endif
-
-#if INTERNAL_SOURCEFILTER_HTTP
-    if (src[SRC_HTTP]) {
-        pFGLAVSplitterSource->m_protocols.AddTail(_T("http"));
-        pFGLAVSplitterSource->AddFormat("http");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_RTSP
-    if (src[SRC_RTSP]) {
-        pFGLAVSplitterSource->m_protocols.AddTail(_T("rtsp"));
-        pFGLAVSplitterSource->AddFormat("rtsp");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_UDP
-    if (src[SRC_UDP]) {
-        pFGLAVSplitterSource->m_protocols.AddTail(_T("udp"));
-        pFGLAVSplitterSource->AddFormat("udp");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_RTP
-    if (src[SRC_RTP]) {
-        pFGLAVSplitterSource->m_protocols.AddTail(_T("rtp"));
-        pFGLAVSplitterSource->AddFormat("rtp");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_MMS
-    if (src[SRC_MMS]) {
-        pFGLAVSplitterSource->m_protocols.AddTail(_T("mms"));
-        pFGLAVSplitterSource->m_protocols.AddTail(_T("mmsh"));
-        pFGLAVSplitterSource->m_protocols.AddTail(_T("mmst"));
-        pFGLAVSplitterSource->AddFormat("mms");
-    }
-#endif
-
-    // Always register the pipe protocol to allow handling standard input
-    pFGLAVSplitterSource->m_protocols.AddTail(_T("pipe"));
-
-    // Add LAV Source Filter if needed
-    if (!pFGLAVSplitterSource->m_extensions.IsEmpty()
-            || !pFGLAVSplitterSource->m_chkbytes.IsEmpty()
-            || !pFGLAVSplitterSource->m_protocols.IsEmpty()) {
-        m_source.AddTail(pFGLAVSplitterSource.Detach());
-    }
 
 #if INTERNAL_SOURCEFILTER_AVI2AC3
     // hmmm, shouldn't there be an option in the GUI to enable/disable this filter?
     pFGF = DEBUG_NEW CFGFilterInternal<CAVI2AC3Filter>(AVI2AC3FilterName, MERIT64(0x00680000) + 1);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WAVE_DOLBY_AC3);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WAVE_DTS);
+    m_transform.AddTail(pFGF);
+#endif
+
+#if INTERNAL_SOURCEFILTER_MATROSKA
+    if (src[SRC_MATROSKA]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CMatroskaSplitterFilter>(MatroskaSplitterName, MERIT64_ABOVE_DSHOW);
+    } else {
+        pFGF = DEBUG_NEW CFGFilterInternal<CMatroskaSplitterFilter>(LowMerit(MatroskaSplitterName), MERIT64_DO_USE);
+    }
+    pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_Matroska);
+    pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
+    m_transform.AddTail(pFGF);
+#endif
+
+#if INTERNAL_SOURCEFILTER_REALMEDIA
+    if (src[SRC_REALMEDIA]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CRealMediaSplitterFilter>(RMSplitterName, MERIT64_ABOVE_DSHOW);
+    } else {
+        pFGF = DEBUG_NEW CFGFilterInternal<CRealMediaSplitterFilter>(LowMerit(RMSplitterName), MERIT64_DO_USE);
+    }
+    pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_RealMedia);
+    pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
+    m_transform.AddTail(pFGF);
+#endif
+
+#if INTERNAL_SOURCEFILTER_AVI
+    if (src[SRC_AVI]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CAviSplitterFilter>(AviSplitterName, MERIT64_ABOVE_DSHOW);
+    } else {
+        pFGF = DEBUG_NEW CFGFilterInternal<CAviSplitterFilter>(LowMerit(AviSplitterName), MERIT64_DO_USE);
+    }
+    pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_Avi);
+    pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
+    m_transform.AddTail(pFGF);
+#endif
+
+#if INTERNAL_SOURCEFILTER_OGG
+    if (src[SRC_OGG]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<COggSplitterFilter>(OggSplitterName, MERIT64_ABOVE_DSHOW);
+    } else {
+        pFGF = DEBUG_NEW CFGFilterInternal<COggSplitterFilter>(LowMerit(OggSplitterName), MERIT64_DO_USE);
+    }
+    pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_Ogg);
+    pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
+    m_transform.AddTail(pFGF);
+#endif
+
+#if INTERNAL_SOURCEFILTER_MPEG
+    if (src[SRC_MPEG]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CMpegSplitterFilter>(MpegSplitterName, MERIT64_ABOVE_DSHOW);
+    } else {
+        pFGF = DEBUG_NEW CFGFilterInternal<CMpegSplitterFilter>(LowMerit(MpegSplitterName), MERIT64_DO_USE);
+    }
+    pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MPEG1System);
+    pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MPEG2_PROGRAM);
+    pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MPEG2_TRANSPORT);
+    pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MPEG2_PVA);
+    pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
+    m_transform.AddTail(pFGF);
+#endif
+
+#if INTERNAL_SOURCEFILTER_MPEGAUDIO
+    if (src[SRC_MPA]) {
+        pFGF = DEBUG_NEW CFGFilterInternal<CMpaSplitterFilter>(MpaSplitterName, MERIT64_ABOVE_DSHOW);
+    } else {
+        pFGF = DEBUG_NEW CFGFilterInternal<CMpaSplitterFilter>(LowMerit(MpaSplitterName), MERIT64_DO_USE);
+    }
+    pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MPEG1Audio);
+    pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
     m_transform.AddTail(pFGF);
 #endif
 
@@ -1572,110 +1650,85 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk)
     m_transform.AddTail(pFGF);
 #endif
 
-#if INTERNAL_SOURCEFILTER_MATROSKA
-    if (src[SRC_MATROSKA]) {
-        pFGLAVSplitter->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_Matroska);
-        pFGLAVSplitter->AddFormat("matroska");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_REALMEDIA
-    if (src[SRC_REALMEDIA]) {
-        pFGLAVSplitter->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_RealMedia);
-        pFGLAVSplitter->AddFormat("rm");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_AVI
-    if (src[SRC_AVI]) {
-        pFGLAVSplitter->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_Avi);
-        pFGLAVSplitter->AddFormat("avi");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_OGG
-    if (src[SRC_OGG]) {
-        pFGLAVSplitter->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_Ogg);
-        pFGLAVSplitter->AddFormat("ogg");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_MPEG
-    if (src[SRC_MPEG]) {
-        pFGLAVSplitter->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MPEG1System);
-        pFGLAVSplitter->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MPEG2_PROGRAM);
-        pFGLAVSplitter->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MPEG2_TRANSPORT);
-        pFGLAVSplitter->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MPEG2_PVA);
-        pFGLAVSplitter->AddFormat("mpeg");
-        pFGLAVSplitter->AddFormat("mpegts");
-        pFGLAVSplitter->AddFormat("mpegraw");
-    }
-#endif
-
-#if INTERNAL_SOURCEFILTER_MPEGAUDIO
-    if (src[SRC_MPA]) {
-        pFGLAVSplitter->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MPEG1Audio);
-        pFGLAVSplitter->AddFormat("mp3");
-    }
-#endif
-
 #if INTERNAL_SOURCEFILTER_MP4
     if (src[SRC_MP4]) {
-        pFGLAVSplitter->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MP4);
-        pFGLAVSplitter->AddFormat("mp4");
+        pFGF = DEBUG_NEW CFGFilterInternal<CMP4SplitterFilter>(MP4SplitterName, MERIT64_ABOVE_DSHOW);
+    } else {
+        pFGF = DEBUG_NEW CFGFilterInternal<CMP4SplitterFilter>(LowMerit(MP4SplitterName), MERIT64_DO_USE);
     }
+    pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_MP4);
+    pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_SOURCEFILTER_FLV
     if (src[SRC_FLV]) {
-        pFGLAVSplitter->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_FLV);
-        pFGLAVSplitter->AddFormat("flv");
+        pFGF = DEBUG_NEW CFGFilterInternal<CFLVSplitterFilter>(FlvSplitterName, MERIT64_ABOVE_DSHOW);
+    } else {
+        pFGF = DEBUG_NEW CFGFilterInternal<CFLVSplitterFilter>(LowMerit(FlvSplitterName), MERIT64_DO_USE);
     }
+    pFGF->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_FLV);
+    pFGF->AddType(MEDIATYPE_Stream, GUID_NULL);
+    m_transform.AddTail(pFGF);
 #endif
-
-    // Add LAV Splitter if needed
-    if (!pFGLAVSplitter->GetTypes().IsEmpty()) {
-        m_transform.AddTail(pFGLAVSplitter.Detach());
-    }
-
-    // Add low merit LAV Splitter
-    pFGLAVSplitterLM->AddType(MEDIATYPE_Stream, MEDIASUBTYPE_NULL);
-    pFGLAVSplitterLM->AddFormat("*");
-    m_transform.AddTail(pFGLAVSplitterLM.Detach());
 
     // Transform filters
 
+#if INTERNAL_DECODER_MPEG1
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpeg2DecFilter>(
+               (tra[TRA_MPEG1]) ? Mpeg2DecFilterName : Mpeg2DecFilterName,
+               (tra[TRA_MPEG1]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPEG1Packet);
+    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPEG1Payload);
+    m_transform.AddTail(pFGF);
+#endif
+
 #if INTERNAL_DECODER_MPEGAUDIO
-    pFGF = tra[TRA_MPA] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_MPA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_MPA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MP3);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MPEG1AudioPayload);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MPEG1Payload);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MPEG1Packet);
+    m_transform.AddTail(pFGF);
 
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_MPA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_MPA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_MPEG2_AUDIO);
     pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_MPEG2_AUDIO);
     pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_MPEG2_AUDIO);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MPEG2_AUDIO);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_AMR
-    pFGF = tra[TRA_AMR] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_AMR]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_AMR]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_SAMR);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_AMR);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_SAWB);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_LPCM
-    pFGF = tra[TRA_LPCM] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_LPCM]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_LPCM]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_DVD_LPCM_AUDIO);
     pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_DVD_LPCM_AUDIO);
     pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_DVD_LPCM_AUDIO);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_DVD_LPCM_AUDIO);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_HDMV_LPCM_AUDIO);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_AC3
-    pFGF = tra[TRA_AC3] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_AC3]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_AC3]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_DOLBY_AC3);
     pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_DOLBY_AC3);
     pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_DOLBY_AC3);
@@ -1684,19 +1737,25 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk)
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_DOLBY_TRUEHD);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_DOLBY_DDPLUS);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_MLP);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_DTS
-    pFGF = tra[TRA_DTS] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_DTS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_DTS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_DTS);
     pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_DTS);
     pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_DTS);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_DTS);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_WAVE_DTS);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_AAC
-    pFGF = tra[TRA_AAC] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_AAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_AAC]) ? MERIT64_ABOVE_DSHOW + 1 : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_AAC);
     pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_AAC);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_AAC);
@@ -1708,28 +1767,58 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk)
     pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_mp4a);
     pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_mp4a);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_mp4a);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_PS2AUDIO
-    pFGF = tra[TRA_PS2AUD] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_PS2AUD]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_PS2AUD]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_PS2_PCM);
     pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_PS2_PCM);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_PS2_PCM);
     pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_PS2_ADPCM);
     pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_PS2_ADPCM);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_PS2_ADPCM);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_REALVIDEO
-    pFGF = tra[TRA_RV] ? pFGLAVVideo : pFGLAVVideoLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CRealVideoDecoder>(
+               (tra[TRA_RV]) ? RMVideoDecoderName : LowMerit(RMVideoDecoderName),
+               (tra[TRA_RV]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RV10);
     pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RV20);
     pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RV30);
     pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RV40);
+    m_transform.AddTail(pFGF);
+
+    pFGF = DEBUG_NEW CFGFilterInternal<CMPCVideoDecFilter>(
+               (tra[TRA_RV]) ? MPCVideoDecName : LowMerit(MPCVideoDecName),
+               (tra[TRA_RV]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RV10);
+    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RV20);
+    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RV30);
+    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RV40);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_REALAUDIO
-    pFGF = tra[TRA_RA] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CRealAudioDecoder>(
+               (tra[TRA_RA]) ? RMAudioDecoderName : LowMerit(RMAudioDecoderName),
+               (tra[TRA_RA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+    pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_14_4);
+    pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_28_8);
+    pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ATRC);
+    pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_COOK);
+    pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_DNET);
+    pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_SIPR);
+    pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_RAAC);
+    m_transform.AddTail(pFGF);
+
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_RA]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_RA]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_14_4);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_28_8);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ATRC);
@@ -1738,35 +1827,53 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk)
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_SIPR);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_RAAC);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_RACP);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_VORBIS
-    pFGF = tra[TRA_VORBIS] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_VORBIS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_VORBIS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_Vorbis2);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_FLAC
-    pFGF = tra[TRA_FLAC] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_FLAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_FLAC]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_FLAC_FRAMED);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_NELLYMOSER
-    pFGF = tra[TRA_NELLY] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_NELLY]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_NELLY]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_NELLYMOSER);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_ALAC
-    pFGF = tra[TRA_ALAC] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_ALAC]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_ALAC]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ALAC);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_ALS
-    pFGF = tra[TRA_ALS] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_ALS]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_ALS]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ALS);
+    m_transform.AddTail(pFGF);
 #endif
 
 #if INTERNAL_DECODER_PCM
-    pFGF = tra[TRA_PCM] ? pFGLAVAudio : pFGLAVAudioLM;
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpaDecFilter>(
+               (tra[TRA_PCM]) ? MPCAudioDecName : LowMerit(MPCAudioDecName),
+               (tra[TRA_PCM]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_PCM_NONE);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_PCM_RAW);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_PCM_TWOS);
@@ -1782,228 +1889,9 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk)
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ADPCM_SWF);
     pFGF->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_ADPCM_AMV);
 #endif
+    m_transform.AddTail(pFGF);
 #endif
 
-    // Add LAV Audio if needed
-    if (!pFGLAVAudio->GetTypes().IsEmpty()) {
-        m_transform.AddTail(pFGLAVAudio.Detach());
-    }
-    // Add low merit LAV Audio
-    pFGLAVAudioLM->AddType(MEDIATYPE_Audio, MEDIASUBTYPE_NULL);
-    m_transform.AddTail(pFGLAVAudioLM.Detach());
-
-#if INTERNAL_DECODER_MPEG1
-    pFGF = tra[TRA_MPEG1] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPEG1Packet);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPEG1Payload);
-#endif
-
-#if HAS_VIDEO_DECODERS
-#if INTERNAL_DECODER_FLV
-    pFGF = tra[TRA_FLV4] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_FLV1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_flv1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_FLV4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_flv4);
-#endif
-#if INTERNAL_DECODER_VP356
-    pFGF = tra[TRA_VP356] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP30);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP31);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP50);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp50);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP60);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp60);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP61);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp61);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP62);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp62);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP6F);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp6f);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP6A);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp6a);
-#endif
-#if INTERNAL_DECODER_H264
-    pFGF = tra[TRA_H264] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_H264);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_h264);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_X264);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_x264);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VSSH);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vssh);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DAVC);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_davc);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_PAVC);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_pavc);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_AVC1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_avc1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_H264_bis);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_CCV1);
-#endif
-#if INTERNAL_DECODER_VC1
-    pFGF = tra[TRA_VC1] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WVC1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wvc1);
-#endif
-#if INTERNAL_DECODER_XVID
-    pFGF = tra[TRA_XVID] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_XVID);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_xvid);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_XVIX);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_xvix);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP4V);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp4v);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_M4S2);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_m4s2);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP4S);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp4s);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3IV1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3iv1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3IV2);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3iv2);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3IVX);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3ivx);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_BLZ0);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_blz0);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DM4V);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dm4v);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DXGM);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dxgm);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_FMP4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_fmp4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_HDX4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_hdx4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_LMP4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_lmp4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_NDIG);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_ndig);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RMP4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_rmp4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SMP4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_smp4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SEDG);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_sedg);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_UMP4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_ump4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WV1F);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wv1f);
-#endif
-#if INTERNAL_DECODER_DIVX
-    pFGF = tra[TRA_DIVX] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIVX);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_divx);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DX50);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dx50);
-#endif
-#if INTERNAL_DECODER_WMV
-    pFGF = tra[TRA_WMV] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WMV1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wmv1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WMV2);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wmv2);
-#endif
-#if INTERNAL_DECODER_WMV
-    pFGF = tra[TRA_WMV] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WMV3);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wmv3);
-#endif
-#if INTERNAL_DECODER_MSMPEG4
-    pFGF = tra[TRA_MSMPEG4] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV3);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div3);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DVX3);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dvx3);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP43);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp43);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_COL1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_col1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV5);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div5);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV6);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div6);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_AP41);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_ap41);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPG3);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mpg3);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV2);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div2);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP42);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp42);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPG4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mpg4);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div1);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP41);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp41);
-#endif
-#if INTERNAL_DECODER_SVQ
-    pFGF = tra[TRA_SVQ3] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SVQ3);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SVQ1);
-#endif
-#if INTERNAL_DECODER_H263
-    pFGF = tra[TRA_H263] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_H263);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_h263);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_S263);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_s263);
-#endif
-#if INTERNAL_DECODER_THEORA
-    pFGF = tra[TRA_THEORA] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_THEORA);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_theora);
-#endif
-#if INTERNAL_DECODER_AMVV
-    pFGF = tra[TRA_AMVV] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_AMVV);
-#endif
-#if INTERNAL_DECODER_VP8
-    pFGF = tra[TRA_VP8] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP80);
-#endif
-#if INTERNAL_DECODER_MJPEG
-    pFGF = tra[TRA_MJPEG] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MJPG);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_QTJpeg);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MJPA);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MJPB);
-#endif
-#if INTERNAL_DECODER_INDEO
-    pFGF = tra[TRA_INDEO] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV31);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV32);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV41);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV50);
-#endif
-#if INTERNAL_DECODER_SCREEN
-    pFGF = tra[TRA_SCREEN] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_TSCC);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VMnc);
-#endif
-#if INTERNAL_DECODER_FLIC
-    pFGF = tra[TRA_FLIC] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_FLIC);
-#endif
-#endif /* #if HAS_VIDEO_DECODERS */
-
-#if INTERNAL_DECODER_MPEG2
-    pFGF = tra[TRA_MPEG2] ? pFGLAVVideo : pFGLAVVideoLM;
-    pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_MPEG2_VIDEO);
-    pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_MPEG2_VIDEO);
-    pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_MPEG2_VIDEO);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPEG2_VIDEO);
-    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPG2);
-#endif
-
-    // Add LAV Video if needed
-    if (!pFGLAVVideo->GetTypes().IsEmpty()) {
-        m_transform.AddTail(pFGLAVVideo.Detach());
-    }
-    // Add low merit LAV video
-    pFGLAVVideoLM->AddType(MEDIATYPE_Video, MEDIASUBTYPE_NULL);
-    m_transform.AddTail(pFGLAVVideoLM.Detach());
 
     pFGF = DEBUG_NEW CFGFilterInternal<CNullTextRenderer>(L"NullTextRenderer", MERIT64_DO_USE);
     pFGF->AddType(MEDIATYPE_Text, MEDIASUBTYPE_NULL);
@@ -2014,6 +1902,468 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk)
     pFGF->AddType(MEDIATYPE_NULL, MEDIASUBTYPE_CVD_SUBPICTURE);
     pFGF->AddType(MEDIATYPE_NULL, MEDIASUBTYPE_SVCD_SUBPICTURE);
     m_transform.AddTail(pFGF);
+
+    // High merit MPC Video Decoder
+#if HAS_FFMPEG_VIDEO_DECODERS || HAS_DXVA_VIDEO_DECODERS
+    CAutoPtr<bool> autoPtrDXVAFilters(DEBUG_NEW bool[TRA_DXVA_LAST + !TRA_DXVA_LAST]);
+    memcpy(autoPtrDXVAFilters, dxva_filters, TRA_DXVA_LAST + !TRA_DXVA_LAST);
+
+    CAutoPtr<bool> autoPtrFFMpegFilters(DEBUG_NEW bool[FFM_LAST + !FFM_LAST]);
+    memcpy(autoPtrFFMpegFilters, ffmpeg_filters, FFM_LAST + !FFM_LAST);
+
+    pFGF = DEBUG_NEW CFGVideoDecoderInternal(MPCVideoDecName, MERIT64_ABOVE_DSHOW, autoPtrFFMpegFilters, autoPtrDXVAFilters);
+
+#if INTERNAL_DECODER_FLV
+    if (ffmpeg_filters[FFM_FLV4]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_FLV1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_flv1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_FLV4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_flv4);
+    }
+#endif
+#if INTERNAL_DECODER_VP356
+    if (ffmpeg_filters[FFM_VP356]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP30);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP31);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP50);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp50);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP60);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp60);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP61);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp61);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP62);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp62);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP6F);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp6f);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP6A);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp6a);
+    }
+#endif
+#if INTERNAL_DECODER_H264 | INTERNAL_DECODER_H264_DXVA
+    if ((ffmpeg_filters[FFM_H264]) || (dxva_filters[TRA_DXVA_H264])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_H264);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_h264);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_X264);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_x264);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VSSH);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vssh);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DAVC);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_davc);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_PAVC);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_pavc);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_AVC1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_avc1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_H264_bis);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_CCV1);
+    }
+#endif
+#if INTERNAL_DECODER_MPEG2_DXVA
+    if (dxva_filters[TRA_DXVA_MPEG2]) {
+        pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_MPEG2_VIDEO);
+        pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_MPEG2_VIDEO);
+        pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_MPEG2_VIDEO);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPEG2_VIDEO);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPG2);
+    }
+#endif
+#if INTERNAL_DECODER_VC1 | INTERNAL_DECODER_VC1_DXVA
+    if ((ffmpeg_filters[FFM_VC1]) || (dxva_filters[TRA_DXVA_VC1])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WVC1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wvc1);
+    }
+#endif
+#if INTERNAL_DECODER_XVID
+    if (ffmpeg_filters[FFM_XVID]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_XVID);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_xvid);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_XVIX);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_xvix);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP4V);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp4v);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_M4S2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_m4s2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP4S);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp4s);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3IV1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3iv1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3IV2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3iv2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3IVX);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3ivx);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_BLZ0);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_blz0);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DM4V);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dm4v);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DXGM);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dxgm);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_FMP4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_fmp4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_HDX4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_hdx4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_LMP4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_lmp4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_NDIG);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_ndig);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RMP4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_rmp4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SMP4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_smp4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SEDG);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_sedg);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_UMP4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_ump4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WV1F);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wv1f);
+    }
+#endif
+#if INTERNAL_DECODER_DIVX
+    if (ffmpeg_filters[FFM_DIVX]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIVX);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_divx);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DX50);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dx50);
+    }
+#endif
+#if INTERNAL_DECODER_WMV
+    if (ffmpeg_filters[FFM_WMV]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WMV1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wmv1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WMV2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wmv2);
+    }
+#endif
+#if INTERNAL_DECODER_WMV || INTERNAL_DECODER_WMV3_DXVA
+    if ((ffmpeg_filters[FFM_WMV]) || (dxva_filters[TRA_DXVA_WMV3])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WMV3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wmv3);
+    }
+#endif
+#if INTERNAL_DECODER_MSMPEG4
+    if (ffmpeg_filters[FFM_MSMPEG4]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DVX3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dvx3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP43);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp43);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_COL1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_col1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV5);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div5);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV6);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div6);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_AP41);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_ap41);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPG3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mpg3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP42);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp42);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPG4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mpg4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP41);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp41);
+    }
+#endif
+#if INTERNAL_DECODER_SVQ
+    if (ffmpeg_filters[FFM_SVQ3]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SVQ3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SVQ1);
+    }
+#endif
+#if INTERNAL_DECODER_H263
+    if (ffmpeg_filters[FFM_H263]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_H263);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_h263);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_S263);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_s263);
+    }
+#endif
+#if INTERNAL_DECODER_THEORA
+    if (ffmpeg_filters[FFM_THEORA]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_THEORA);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_theora);
+    }
+#endif
+#if INTERNAL_DECODER_AMVV
+    if (ffmpeg_filters[FFM_AMVV]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_AMVV);
+    }
+#endif
+#if INTERNAL_DECODER_VP8
+    if (ffmpeg_filters[FFM_VP8]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP80);
+    }
+#endif
+#if INTERNAL_DECODER_MJPEG
+    if (ffmpeg_filters[FFM_MJPEG]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MJPG);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_QTJpeg);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MJPA);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MJPB);
+    }
+#endif
+#if INTERNAL_DECODER_INDEO
+    if (ffmpeg_filters[FFM_INDEO]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV31);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV32);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV41);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV50);
+    }
+#endif
+#if INTERNAL_DECODER_SCREEN
+    if (ffmpeg_filters[FFM_SCREEN]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_TSCC);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VMnc);
+    }
+#endif
+
+    m_transform.AddTail(pFGF);
+#endif /* #if HAS_FFMPEG_VIDEO_DECODERS || HAS_DXVA_VIDEO_DECODERS */
+
+    // Low merit MPC Video Decoder
+#if HAS_FFMPEG_VIDEO_DECODERS || HAS_DXVA_VIDEO_DECODERS
+
+    CAutoPtr<bool> autoPtrDisabledDXVAFilters(DEBUG_NEW bool[TRA_DXVA_LAST + !TRA_DXVA_LAST]);
+    for (size_t i = 0; i < TRA_DXVA_LAST + !TRA_DXVA_LAST; i++) {
+        autoPtrDisabledDXVAFilters[i] = !dxva_filters[i];
+    }
+
+    CAutoPtr<bool> autoPtrDisabledFFMpegFilters(DEBUG_NEW bool[FFM_LAST + !FFM_LAST]);
+    for (size_t i = 0; i < FFM_LAST + !FFM_LAST; i++) {
+        autoPtrDisabledFFMpegFilters[i] = !ffmpeg_filters[i];
+    }
+
+    pFGF = DEBUG_NEW CFGVideoDecoderInternal(LowMerit(MPCVideoDecName), MERIT64_DO_USE, autoPtrDisabledFFMpegFilters, autoPtrDisabledDXVAFilters);
+
+#if INTERNAL_DECODER_FLV
+    if (!(ffmpeg_filters[FFM_FLV4])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_FLV1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_flv1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_FLV4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_flv4);
+    }
+#endif
+#if INTERNAL_DECODER_VP356
+    if (!(ffmpeg_filters[FFM_VP356])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP30);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP31);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP50);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp50);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP60);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp60);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP61);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp61);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP62);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp62);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP6F);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp6f);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP6A);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vp6a);
+    }
+#endif
+#if INTERNAL_DECODER_H264 | INTERNAL_DECODER_H264_DXVA
+    if (!(ffmpeg_filters[FFM_H264]) || !(dxva_filters[TRA_DXVA_H264])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_H264);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_h264);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_X264);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_x264);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VSSH);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_vssh);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DAVC);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_davc);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_PAVC);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_pavc);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_AVC1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_avc1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_H264_bis);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_CCV1);
+    }
+#endif
+#if INTERNAL_DECODER_MPEG2_DXVA
+    if (!(dxva_filters[TRA_DXVA_MPEG2])) {
+        pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_MPEG2_VIDEO);
+        pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_MPEG2_VIDEO);
+        pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_MPEG2_VIDEO);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPEG2_VIDEO);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPG2);
+    }
+#endif
+#if INTERNAL_DECODER_VC1 | INTERNAL_DECODER_VC1_DXVA
+    if (!(ffmpeg_filters[FFM_VC1]) || !(dxva_filters[TRA_DXVA_VC1])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WVC1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wvc1);
+    }
+#endif
+#if INTERNAL_DECODER_XVID
+    if (!(ffmpeg_filters[FFM_XVID])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_XVID);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_xvid);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_XVIX);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_xvix);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP4V);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp4v);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_M4S2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_m4s2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP4S);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp4s);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3IV1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3iv1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3IV2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3iv2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3IVX);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_3ivx);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_BLZ0);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_blz0);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DM4V);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dm4v);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DXGM);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dxgm);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_FMP4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_fmp4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_HDX4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_hdx4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_LMP4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_lmp4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_NDIG);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_ndig);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_RMP4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_rmp4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SMP4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_smp4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SEDG);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_sedg);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_UMP4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_ump4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WV1F);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wv1f);
+    }
+#endif
+#if INTERNAL_DECODER_DIVX
+    if (!(ffmpeg_filters[FFM_DIVX])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIVX);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_divx);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DX50);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dx50);
+    }
+#endif
+#if INTERNAL_DECODER_WMV
+    if (!(ffmpeg_filters[FFM_WMV])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WMV1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wmv1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WMV2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wmv2);
+    }
+#endif
+#if INTERNAL_DECODER_WMV | INTERNAL_DECODER_WMV3_DXVA
+    if (!(ffmpeg_filters[FFM_WMV]) || !(dxva_filters[TRA_DXVA_WMV3])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_WMV3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_wmv3);
+    }
+#endif
+#if INTERNAL_DECODER_MSMPEG4
+    if (!(ffmpeg_filters[FFM_MSMPEG4])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DVX3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_dvx3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP43);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp43);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_COL1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_col1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV5);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div5);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV6);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div6);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_AP41);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_ap41);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPG3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mpg3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div2);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP42);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp42);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPG4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mpg4);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_DIV1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_div1);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MP41);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_mp41);
+    }
+#endif
+#if INTERNAL_DECODER_SVQ
+    if (!(ffmpeg_filters[FFM_SVQ3])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SVQ3);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_SVQ1);
+    }
+#endif
+#if INTERNAL_DECODER_H263
+    if (!(ffmpeg_filters[FFM_H263])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_H263);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_h263);
+    }
+#endif
+#if INTERNAL_DECODER_THEORA
+    if (!(ffmpeg_filters[FFM_THEORA])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_THEORA);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_theora);
+    }
+#endif
+#if INTERNAL_DECODER_AMVV
+    if (!(ffmpeg_filters[FFM_AMVV])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_AMVV);
+    }
+#endif
+#if INTERNAL_DECODER_VP8
+    if (!(ffmpeg_filters[FFM_VP8])) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VP80);
+    }
+#endif
+#if INTERNAL_DECODER_MJPEG
+    if (!ffmpeg_filters[FFM_MJPEG]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MJPG);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_QTJpeg);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MJPA);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MJPB);
+    }
+#endif
+#if INTERNAL_DECODER_INDEO
+    if (!ffmpeg_filters[FFM_INDEO]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV31);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV32);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV41);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_IV50);
+    }
+#endif
+#if INTERNAL_DECODER_SCREEN
+    if (!ffmpeg_filters[FFM_SCREEN]) {
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_TSCC);
+        pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_VMnc);
+    }
+#endif
+
+    m_transform.AddTail(pFGF);
+#endif /* HAS_FFMPEG_VIDEO_DECODERS || HAS_DXVA_VIDEO_DECODERS */
+
+#if INTERNAL_DECODER_MPEG2
+    // Keep software decoder after DXVA decoder !
+    pFGF = DEBUG_NEW CFGFilterInternal<CMpeg2DecFilter>(
+               (tra[TRA_MPEG2]) ? Mpeg2DecFilterName : LowMerit(Mpeg2DecFilterName),
+               (tra[TRA_MPEG2]) ? MERIT64_ABOVE_DSHOW : MERIT64_DO_USE);
+    pFGF->AddType(MEDIATYPE_DVD_ENCRYPTED_PACK, MEDIASUBTYPE_MPEG2_VIDEO);
+    pFGF->AddType(MEDIATYPE_MPEG2_PACK, MEDIASUBTYPE_MPEG2_VIDEO);
+    pFGF->AddType(MEDIATYPE_MPEG2_PES, MEDIASUBTYPE_MPEG2_VIDEO);
+    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPEG2_VIDEO);
+    pFGF->AddType(MEDIATYPE_Video, MEDIASUBTYPE_MPG2);
+    m_transform.AddTail(pFGF);
+#endif
 
     // Blocked filters
 
@@ -2063,12 +2413,10 @@ CFGManagerCustom::CFGManagerCustom(LPCTSTR pName, LPUNKNOWN pUnk)
     // mainconcept color space converter
     m_transform.AddTail(DEBUG_NEW CFGFilterRegistry(GUIDFromCString(_T("{272D77A0-A852-4851-ADA4-9091FEAD4C86}")), MERIT64_DO_NOT_USE));
 
-    // VSFilter blocking routines
-    if (s.fBlockVSFilter) {
-        // If the internal renderer is enabled or XySubFilter is registered and we are using a compatible renderer
-        if (s.IsISREnabled() || (IsCLSIDRegistered(CLSID_XySubFilter) && s.iDSVideoRendererType == VIDRNDT_DS_MADVR)) {
-            // Disable VSFilter as a workaround for its aggressive loading
-            m_transform.AddTail(DEBUG_NEW CFGFilterRegistry(CLSID_VSFilter, MERIT64_DO_NOT_USE));
+    // Block VSFilter when internal subtitle renderer will get used
+    if (s.fAutoloadSubtitles && s.fBlockVSFilter) {
+        if (s.iDSVideoRendererType == VIDRNDT_DS_VMR7RENDERLESS || s.iDSVideoRendererType == VIDRNDT_DS_VMR9RENDERLESS || s.iDSVideoRendererType == VIDRNDT_DS_EVR_CUSTOM || s.iDSVideoRendererType == VIDRNDT_DS_DXR || s.iDSVideoRendererType == VIDRNDT_DS_SYNC || s.iDSVideoRendererType == VIDRNDT_DS_MADVR) {
+            m_transform.AddTail(DEBUG_NEW CFGFilterRegistry(GUIDFromCString(_T("{9852A670-F845-491B-9BE6-EBD841B8A613}")), MERIT64_DO_NOT_USE));
         }
     }
 

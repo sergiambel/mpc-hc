@@ -19,7 +19,6 @@
  */
 
 #include "stdafx.h"
-#include <atlpath.h>
 #include "mplayerc.h"
 #include "MiniDump.h"
 #include "resource.h"

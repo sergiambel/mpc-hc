@@ -2,8 +2,6 @@ bool ExtractHardlink(wchar *NameNew,wchar *NameExisting,size_t NameExistingSize)
 {
   if (!FileExist(NameExisting))
     return false;
-  CreatePath(NameNew,true);
-
 #ifdef _WIN_ALL
   UnixSlashToDos(NameExisting,NameExisting,NameExistingSize);
 

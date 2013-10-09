@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2012 see Authors.txt
  *
  * This file is part of MPC-HC.
  *
@@ -30,25 +30,15 @@ struct filter_t {
     int type;
     int flag;
     UINT nHintID;
-
-    filter_t() {};
-
-    filter_t(LPCTSTR label, int type, int flag, UINT nHintID)
-        : label(label)
-        , type(type)
-        , flag(flag)
-        , nHintID(nHintID)
-    {}
+    CUnknown* (WINAPI* CreateInstance)(LPUNKNOWN lpunk, HRESULT* phr);
 };
 
 class CPPageInternalFiltersListBox : public CCheckListBox
 {
     DECLARE_DYNAMIC(CPPageInternalFiltersListBox)
 
-    const CArray<filter_t>& m_filters;
-
 public:
-    CPPageInternalFiltersListBox(int n, const CArray<filter_t>& filters);
+    CPPageInternalFiltersListBox(int n);
 
 protected:
     virtual void PreSubclassWindow();
@@ -63,6 +53,7 @@ protected:
     unsigned int m_nbChecked[FILTER_TYPE_NB];
 
 public:
+    virtual void DrawItem(LPDRAWITEMSTRUCT /*lpDrawItemStruct*/);
     virtual int AddFilter(filter_t* filter, bool checked);
     virtual void UpdateCheckState();
     afx_msg void OnRButtonDown(UINT nFlags, CPoint point);
@@ -74,19 +65,16 @@ class CPPageInternalFilters : public CPPageBase
 {
     DECLARE_DYNAMIC(CPPageInternalFilters)
 
-    CPPageInternalFiltersListBox m_listSrc;
-    CPPageInternalFiltersListBox m_listTra;
-
-    CArray<filter_t> m_filters;
-
-    void InitFiltersList();
-
 public:
     CPPageInternalFilters();
     virtual ~CPPageInternalFilters();
 
     // Dialog Data
     enum { IDD = IDD_PPAGEINTERNALFILTERS };
+    CPPageInternalFiltersListBox m_listSrc;
+    CPPageInternalFiltersListBox m_listTra;
+
+    void ShowPPage(CPPageInternalFiltersListBox& l);
 
 protected:
     virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
@@ -95,9 +83,9 @@ protected:
 
     DECLARE_MESSAGE_MAP()
 
+public:
+    afx_msg void OnLbnDblclkList1();
+    afx_msg void OnLbnDblclkList2();
     afx_msg void OnSelChange();
     afx_msg void OnCheckBoxChange();
-    afx_msg void OnBnClickedSplitterConf();
-    afx_msg void OnBnClickedVideoDecConf();
-    afx_msg void OnBnClickedAudioDecConf();
 };

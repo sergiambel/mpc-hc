@@ -23,7 +23,6 @@ public:
 	bool IsActive() const;
 
 	void Init(const wchar_t *file, IVDFileWatcherCallback *cb);
-	void InitDir(const wchar_t *path, bool subdirs, IVDFileWatcherCallback *cb);
 	void Shutdown();
 
 	bool Wait(uint32 delay = 0xFFFFFFFFU);
@@ -33,7 +32,6 @@ protected:
 
 	void *mChangeHandle;
 	uint64 mLastWriteTime;
-	bool mbWatchDir;
 	VDStringW mPath;
 
 	IVDFileWatcherCallback *mpCB;

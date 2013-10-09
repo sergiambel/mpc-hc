@@ -60,7 +60,6 @@ class ErrorHandler
     int GetSystemErrorCode();
     void SetSystemErrorCode(int Code);
     bool UserBreak;
-    bool MainExit; // main() is completed.
 };
 
 

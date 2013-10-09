@@ -106,20 +106,6 @@ STDMETHODIMP CCDDAReader::NonDelegatingQueryInterface(REFIID riid, void** ppv)
         __super::NonDelegatingQueryInterface(riid, ppv);
 }
 
-STDMETHODIMP CCDDAReader::QueryFilterInfo(FILTER_INFO* pInfo)
-{
-    CheckPointer(pInfo, E_POINTER);
-    ValidateReadWritePtr(pInfo, sizeof(FILTER_INFO));
-
-    wcscpy_s(pInfo->achName, CCDDAReaderName);
-    pInfo->pGraph = m_pGraph;
-    if (m_pGraph) {
-        m_pGraph->AddRef();
-    }
-
-    return S_OK;
-}
-
 // IFileSourceFilter
 
 STDMETHODIMP CCDDAReader::Load(LPCOLESTR pszFileName, const AM_MEDIA_TYPE* pmt)
@@ -260,7 +246,7 @@ CCDDAStream::CCDDAStream()
     m_llPosition = m_llLength = 0;
 
     ZeroMemory(&m_TOC, sizeof(m_TOC));
-    m_nFirstSector = m_nStartSector = m_nStopSector = 0;
+    m_nStartSector = m_nStopSector = 0;
 
     ZeroMemory(&m_header, sizeof(m_header));
     m_header.riff.hdr.chunkID = RIFFID;

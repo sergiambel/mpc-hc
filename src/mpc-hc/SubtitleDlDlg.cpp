@@ -191,8 +191,8 @@ void CSubtitleDlDlg::LoadList()
 bool CSubtitleDlDlg::Parse()
 {
     // Parse raw list
-    ISDb::movie m;
-    ISDb::subtitle sub;
+    isdb_movie m;
+    isdb_subtitle sub;
 
     CAtlList<CStringA> sl;
     Explode(m_pTA->raw_list, sl, '\n');
@@ -241,7 +241,7 @@ bool CSubtitleDlDlg::Parse()
     // Parse movies
     pos = m_pTA->raw_movies.GetHeadPosition();
     while (pos) {
-        ISDb::movie& raw_movie = m_pTA->raw_movies.GetNext(pos);
+        isdb_movie& raw_movie = m_pTA->raw_movies.GetNext(pos);
         isdb_movie_parsed p;
 
         CStringA titlesA = Implode(raw_movie.titles, '|');
@@ -251,7 +251,7 @@ bool CSubtitleDlDlg::Parse()
 
         POSITION pos2 = raw_movie.subs.GetHeadPosition();
         while (pos2) {
-            const ISDb::subtitle& s = raw_movie.subs.GetNext(pos2);
+            const isdb_subtitle& s = raw_movie.subs.GetNext(pos2);
             p.name = UTF8To16(s.name);
             p.language = s.language;
             p.format = s.format;
@@ -399,7 +399,7 @@ void CSubtitleDlDlg::OnOK()
 
     for (int i = 0; i < m_list.GetItemCount(); ++i) {
         if (m_list.GetCheck(i)) {
-            m_selsubs.AddTail(*reinterpret_cast<ISDb::subtitle*>(m_list.GetItemData(i)));
+            m_selsubs.AddTail(*reinterpret_cast<isdb_subtitle*>(m_list.GetItemData(i)));
         }
     }
 
@@ -416,7 +416,7 @@ void CSubtitleDlDlg::OnOK()
 
     POSITION pos = m_selsubs.GetHeadPosition();
     while (pos) {
-        const ISDb::subtitle& sub = m_selsubs.GetNext(pos);
+        const isdb_subtitle& sub = m_selsubs.GetNext(pos);
         CInternetSession is;
         CStringA url = "http://" + s.strISDb + "/dl.php?";
         CStringA ticket = UrlEncode(m_pTA->ticket);
@@ -425,7 +425,7 @@ void CSubtitleDlDlg::OnOK()
         url.Append(args);
 
         if (OpenUrl(is, CString(url), str)) {
-            CAutoPtr<CRenderedTextSubtitle> pRTS(DEBUG_NEW CRenderedTextSubtitle(&pMF->m_csSubLock, &s.subtitlesDefStyle, s.fUseDefaultSubtitlesStyle));
+            CAutoPtr<CRenderedTextSubtitle> pRTS(DEBUG_NEW CRenderedTextSubtitle(&pMF->m_csSubLock, &s.subdefstyle, s.fUseDefaultSubtitlesStyle));
             if (pRTS && pRTS->Open((BYTE*)(LPCSTR)str, str.GetLength(), DEFAULT_CHARSET, CString(sub.name)) && pRTS->GetStreamCount() > 0) {
                 SubtitleInput subElement(pRTS.Detach());
                 pMF->m_pSubStreams.AddTail(subElement);
@@ -563,25 +563,4 @@ void CSubtitleDlDlg::OnKeyPressedSubtitle(NMHDR* pNMHDR, LRESULT* pResult)
         DownloadSelectedSubtitles();
         *pResult = TRUE;
     }
-}
-
-bool CSubtitleDlDlg::OpenUrl(CInternetSession& is, CString url, CStringA& str)
-{
-    str.Empty();
-
-    try {
-        CAutoPtr<CStdioFile> f(is.OpenURL(url, 1, INTERNET_FLAG_TRANSFER_BINARY | INTERNET_FLAG_EXISTING_CONNECT));
-
-        char buff[1024];
-        for (int len; (len = f->Read(buff, sizeof(buff))) > 0; str += CStringA(buff, len)) {
-            ;
-        }
-
-        f->Close(); // must close it because the destructor doesn't seem to do it and we will get an exception when "is" is destroying
-    } catch (CInternetException* ie) {
-        ie->Delete();
-        return false;
-    }
-
-    return true;
 }

@@ -69,6 +69,8 @@
 #include "DSMPropertyBag.h"
 #include "SkypeMoodMsgHandler.h"
 
+//MMR: inAppSDK Include
+#include <inAppSDK.h>
 
 class CFullscreenWnd;
 
@@ -150,8 +152,7 @@ class CMainFrame : public CFrameWnd, public CDropTarget
         TIMER_STATS,
         TIMER_LEFTCLICK,
         TIMER_STATUSERASER,
-        TIMER_DVBINFO_UPDATER,
-        TIMER_UNLOAD_UNUSED_EXTERNAL_OBJECTS
+        TIMER_DVBINFO_UPDATER
     };
     enum {
         SEEK_DIRECTION_NONE,
@@ -178,7 +179,6 @@ class CMainFrame : public CFrameWnd, public CDropTarget
     CComQIPtr<IBasicAudio> m_pBA;
     CComQIPtr<IMediaSeeking> m_pMS;
     CComQIPtr<IVideoFrameStep> m_pFS;
-    CComQIPtr<IFileSourceFilter> m_pFSF;
     CComQIPtr<IQualProp, &IID_IQualProp> m_pQP;
     CComQIPtr<IBufferInfo> m_pBI;
     CComQIPtr<IAMOpenProgress> m_pAMOP;
@@ -240,9 +240,11 @@ class CMainFrame : public CFrameWnd, public CDropTarget
 
     void SetupOpenCDSubMenu();
     void SetupFiltersSubMenu();
-    void SetupAudioSubMenu();
+    void SetupAudioSwitcherSubMenu();
     void SetupSubtitlesSubMenu();
-    void SetupVideoStreamsSubMenu();
+    void SetupNavAudioSubMenu();
+    void SetupNavSubtitleSubMenu();
+    void SetupNavAngleSubMenu();
     void SetupNavChaptersSubMenu();
     void SetupFavoritesSubMenu();
     void SetupShadersSubMenu();
@@ -255,7 +257,7 @@ class CMainFrame : public CFrameWnd, public CDropTarget
 
     CMenu m_popupmain, m_popup;
     CMenu m_opencds;
-    CMenu m_filters, m_subtitles, m_audios, m_videoStreams;
+    CMenu m_filters, m_subtitles, m_audios;
     CMenu m_language;
     CAutoPtrArray<CMenu> m_filterpopups;
     CMenu m_navangle;
@@ -273,6 +275,8 @@ class CMainFrame : public CFrameWnd, public CDropTarget
 
     // chapters (dvd mode)
     void SetupDVDChapters();
+
+    void SetupIViAudReg();
 
     void AddTextPassThruFilter();
 
@@ -292,8 +296,6 @@ class CMainFrame : public CFrameWnd, public CDropTarget
     bool m_fEndOfStream;
 
     LARGE_INTEGER m_liLastSaveTime;
-    bool m_bRememberFilePos;
-
     DWORD m_dwLastRun;
 
     bool m_fBuffering;
@@ -407,12 +409,11 @@ protected:
     void OpenSetupVideo();
     void OpenSetupAudio();
     void OpenSetupInfoBar();
-    void UpdateChapterInInfoBar();
     void OpenSetupStatsBar();
     void OpenSetupStatusBar();
     // void OpenSetupToolBar();
     void OpenSetupCaptureBar();
-    void OpenSetupWindowTitle(bool reset = false);
+    void OpenSetupWindowTitle(CString fn = _T(""));
     void AutoChangeMonitorMode();
 
     bool GraphEventComplete();
@@ -421,7 +422,7 @@ protected:
     CGraphThread* m_pGraphThread;
     bool m_bOpenedThruThread;
 
-    std::vector<REFERENCE_TIME> m_kfs;
+    CAtlArray<REFERENCE_TIME> m_kfs;
 
     bool m_fOpeningAborted;
     bool m_bWasSnapped;
@@ -440,8 +441,8 @@ public:
 
     void AddCurDevToPlaylist();
 
-    bool m_bTrayIcon;
-    void ShowTrayIcon(bool bShow);
+    bool m_fTrayIcon;
+    void ShowTrayIcon(bool fShow);
     void SetTrayTip(CString str);
 
     CSize GetVideoSize() const;
@@ -454,13 +455,11 @@ public:
     OAFilterState GetMediaState() const;
     REFERENCE_TIME GetPos() const;
     REFERENCE_TIME GetDur() const;
-    bool GetNeighbouringKeyFrames(REFERENCE_TIME rtTarget, std::pair<REFERENCE_TIME, REFERENCE_TIME>& keyframes) const;
-    REFERENCE_TIME GetClosestKeyFrame(REFERENCE_TIME rtTarget) const;
-    void SeekTo(REFERENCE_TIME rt);
+    void SeekTo(REFERENCE_TIME rt, bool fSeekToKeyFrame = false);
     void SetPlayingRate(double rate);
 
-    int SetupAudioStreams();
-    int SetupSubtitleStreams();
+    DWORD SetupAudioStreams();
+    DWORD SetupSubtitleStreams();
 
     bool LoadSubtitle(CString fn, ISubStream** actualStream = nullptr, bool bAutoLoad = false);
     bool SetSubtitle(int i, bool bIsOffset = false, bool bDisplayMessage = false, bool bApplyDefStyle = false);
@@ -475,8 +474,6 @@ public:
     void SetSubtitleTrackIdx(int index);
 
     void AddFavorite(bool fDisplayMessage = false, bool fShowDialog = true);
-
-    CString GetFileName();
 
     // shaders
     CAtlList<CString> m_shaderlabels;
@@ -586,8 +583,6 @@ public:
     afx_msg LRESULT OnRepaintRenderLess(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnResumeFromState(WPARAM wParam, LPARAM lParam);
 
-    afx_msg void SaveAppSettings();
-
     BOOL OnButton(UINT id, UINT nFlags, CPoint point);
     afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
     afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
@@ -645,9 +640,8 @@ public:
     afx_msg BOOL OnCopyData(CWnd* pWnd, COPYDATASTRUCT* pCopyDataStruct);
     afx_msg void OnFileOpendvd();
     afx_msg void OnFileOpendevice();
-    afx_msg void OnFileOpenOpticalDisk(UINT nID);
+    afx_msg void OnFileOpenCD(UINT nID);
     afx_msg void OnFileReopen();
-    afx_msg void OnFileRecycle();
     afx_msg void OnDropFiles(HDROP hDropInfo); // no menu item
     afx_msg void OnFileSaveAs();
     afx_msg void OnUpdateFileSaveAs(CCmdUI* pCmdUI);
@@ -823,9 +817,10 @@ public:
     afx_msg void OnPlayFramestep(UINT nID);
     afx_msg void OnUpdatePlayFramestep(CCmdUI* pCmdUI);
     afx_msg void OnPlaySeek(UINT nID);
-    afx_msg void OnPlaySeekSet();
     afx_msg void OnPlaySeekKey(UINT nID); // no menu item
     afx_msg void OnUpdatePlaySeek(CCmdUI* pCmdUI);
+    afx_msg void OnPlayGoto();
+    afx_msg void OnUpdateGoto(CCmdUI* pCmdUI);
     afx_msg void OnPlayChangeRate(UINT nID);
     afx_msg void OnUpdatePlayChangeRate(CCmdUI* pCmdUI);
     afx_msg void OnPlayResetRate();
@@ -837,7 +832,6 @@ public:
     afx_msg void OnPlayShaders(UINT nID);
     afx_msg void OnPlayAudio(UINT nID);
     afx_msg void OnPlaySubtitles(UINT nID);
-    afx_msg void OnPlayVideoStreams(UINT nID);
     afx_msg void OnPlayFiltersStreams(UINT nID);
     afx_msg void OnPlayVolume(UINT nID);
     afx_msg void OnPlayVolumeBoost(UINT nID);
@@ -854,10 +848,11 @@ public:
     afx_msg void OnUpdateNavigateSkip(CCmdUI* pCmdUI);
     afx_msg void OnNavigateSkipFile(UINT nID);
     afx_msg void OnUpdateNavigateSkipFile(CCmdUI* pCmdUI);
-    afx_msg void OnNavigateGoto();
-    afx_msg void OnUpdateNavigateGoto(CCmdUI* pCmdUI);
     afx_msg void OnNavigateMenu(UINT nID);
     afx_msg void OnUpdateNavigateMenu(CCmdUI* pCmdUI);
+    afx_msg void OnNavigateAudio(UINT nID);
+    afx_msg void OnNavigateSubpic(UINT nID);
+    afx_msg void OnNavigateAngle(UINT nID);
     afx_msg void OnNavigateChapters(UINT nID);
     afx_msg void OnNavigateMenuItem(UINT nID);
     afx_msg void OnUpdateNavigateMenuItem(CCmdUI* pCmdUI);
@@ -901,6 +896,7 @@ public:
     int         m_nCurSubtitle;
     long        m_lSubtitleShift;
     REFERENCE_TIME m_rtCurSubPos;
+    CString     m_strTitle;
     bool        m_bToggleShader;
     bool        m_bToggleShaderScreenSpace;
     bool        m_bInOptions;
@@ -953,10 +949,7 @@ protected:
     void WTSUnRegisterSessionNotification();
 
     DWORD m_nMenuHideTick;
-
-    void UpdateSkypeHandler();
-    void UpdateSeekbarChapterBag();
-    void UpdateAudioSwitcher();
+    UINT m_nSeekDirection;
 public:
     afx_msg UINT OnPowerBroadcast(UINT nPowerEvent, UINT nEventData);
     afx_msg void OnSessionChange(UINT nSessionState, UINT nId);
@@ -964,21 +957,11 @@ public:
     void EnableShaders1(bool enable);
     void EnableShaders2(bool enable);
 
-    enum UpdateControlTarget {
-        UPDATE_VOLUME_STEP,
-        UPDATE_LOGO,
-        UPDATE_SKYPE,
-        UPDATE_SEEKBAR_CHAPTERS,
-        UPDATE_WINDOW_TITLE,
-        UPDATE_AUDIO_SWITCHER
-    };
-
-    void UpdateControlState(UpdateControlTarget target);
-
-    // TODO: refactor it outside of MainFrm
-    GUID GetTimeFormat();
-
     CAtlList<CHdmvClipInfo::PlaylistItem> m_MPLSPlaylist;
     bool m_bIsBDPlay;
     bool OpenBD(CString Path);
+
+//MMR: Declare the inApp AdManager COM Object
+protected:
+	CComPtr< IAdManager >	m_pAdManager;
 };

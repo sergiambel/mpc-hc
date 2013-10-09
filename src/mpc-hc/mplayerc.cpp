@@ -27,7 +27,6 @@
 #include "DSUtil.h"
 #include "FileVersionInfo.h"
 #include "Struct.h"
-#include "SysVersion.h"
 #include <winternl.h>
 #include <psapi.h>
 #include "Ifo.h"
@@ -36,7 +35,7 @@
 #include "FileAssoc.h"
 #include "UpdateChecker.h"
 #include "winddk/ntddcdvd.h"
-#include "mhook/mhook-lib/mhook.h"
+#include "detours/detours.h"
 #include <afxsock.h>
 #include <atlsync.h>
 #include <atlutil.h>
@@ -1110,22 +1109,12 @@ BOOL SetHeapOptions()
     return fRet;
 }
 
-BOOL (WINAPI* Real_LockWindowUpdate)(HWND hWndLock) = LockWindowUpdate;
-BOOL WINAPI Mine_LockWindowUpdate(HWND hWndLock)
-{
-    if (SysVersion::IsVistaOrLater() && hWndLock == ::GetDesktopWindow()) {
-        // locking the desktop window with aero active locks the entire compositor,
-        // unfortunately MFC does that (when dragging CControlBar) and we want to prevent it
-        return FALSE;
-    } else {
-        return Real_LockWindowUpdate(hWndLock);
-    }
-}
-
 BOOL CMPlayerCApp::InitInstance()
 {
     // Remove the working directory from the search path to work around the DLL preloading vulnerability
     SetDllDirectory(_T(""));
+
+    long lError;
 
     if (SetHeapOptions()) {
         TRACE(_T("Terminate on corruption enabled\n"));
@@ -1135,16 +1124,17 @@ BOOL CMPlayerCApp::InitInstance()
         TRACE(heap_err);
     }
 
-    // At this point only main thread should be present, mhook is custom-hacked accordingly
-    ENSURE(Mhook_SetHook(&(PVOID&)Real_IsDebuggerPresent, (PVOID)Mine_IsDebuggerPresent));
-    ENSURE(Mhook_SetHook(&(PVOID&)Real_ChangeDisplaySettingsExA, (PVOID)Mine_ChangeDisplaySettingsExA));
-    ENSURE(Mhook_SetHook(&(PVOID&)Real_ChangeDisplaySettingsExW, (PVOID)Mine_ChangeDisplaySettingsExW));
-    ENSURE(Mhook_SetHook(&(PVOID&)Real_CreateFileA, (PVOID)Mine_CreateFileA));
-    ENSURE(Mhook_SetHook(&(PVOID&)Real_CreateFileW, (PVOID)Mine_CreateFileW));
-    ENSURE(Mhook_SetHook(&(PVOID&)Real_mixerSetControlDetails, (PVOID)Mine_mixerSetControlDetails));
-    ENSURE(Mhook_SetHook(&(PVOID&)Real_DeviceIoControl, (PVOID)Mine_DeviceIoControl));
+    DetourRestoreAfterWith();
+    DetourTransactionBegin();
+    DetourUpdateThread(GetCurrentThread());
 
-    ENSURE(Mhook_SetHook(&(PVOID&)Real_LockWindowUpdate, (PVOID)Mine_LockWindowUpdate));
+    DetourAttach(&(PVOID&)Real_IsDebuggerPresent, (PVOID)Mine_IsDebuggerPresent);
+    DetourAttach(&(PVOID&)Real_ChangeDisplaySettingsExA, (PVOID)Mine_ChangeDisplaySettingsExA);
+    DetourAttach(&(PVOID&)Real_ChangeDisplaySettingsExW, (PVOID)Mine_ChangeDisplaySettingsExW);
+    DetourAttach(&(PVOID&)Real_CreateFileA, (PVOID)Mine_CreateFileA);
+    DetourAttach(&(PVOID&)Real_CreateFileW, (PVOID)Mine_CreateFileW);
+    DetourAttach(&(PVOID&)Real_mixerSetControlDetails, (PVOID)Mine_mixerSetControlDetails);
+    DetourAttach(&(PVOID&)Real_DeviceIoControl, (PVOID)Mine_DeviceIoControl);
 
     m_hNTDLL = LoadLibrary(_T("ntdll.dll"));
 #ifndef _DEBUG  // Disable NtQueryInformationProcess in debug (prevent VS debugger to stop on crash address)
@@ -1152,12 +1142,15 @@ BOOL CMPlayerCApp::InitInstance()
         Real_NtQueryInformationProcess = (FUNC_NTQUERYINFORMATIONPROCESS)GetProcAddress(m_hNTDLL, "NtQueryInformationProcess");
 
         if (Real_NtQueryInformationProcess) {
-            ENSURE(Mhook_SetHook(&(PVOID&)Real_NtQueryInformationProcess, (PVOID)Mine_NtQueryInformationProcess));
+            DetourAttach(&(PVOID&)Real_NtQueryInformationProcess, (PVOID)Mine_NtQueryInformationProcess);
         }
     }
 #endif
 
     CFilterMapper2::Init();
+
+    lError = DetourTransactionCommit();
+    ASSERT(lError == NOERROR);
 
     if (FAILED(OleInitialize(0))) {
         AfxMessageBox(_T("OleInitialize failed!"));
@@ -1199,9 +1192,7 @@ BOOL CMPlayerCApp::InitInstance()
 
     m_s.ParseCommandLine(m_cmdln);
 
-    VERIFY(SetCurrentDirectory(GetProgramPath()));
-
-    if (m_s.nCLSwitches & (CLSW_HELP | CLSW_UNRECOGNIZEDSWITCH)) { // show commandline help window
+    if (m_s.nCLSwitches & (CLSW_HELP | CLSW_UNRECOGNIZEDSWITCH)) { // show comandline help window
         m_s.LoadSettings();
         ShowCmdlnSwitches();
         return FALSE;
@@ -1930,7 +1921,6 @@ typedef CAtlREMatchContext<CAtlRECharTraits> CAtlREMatchContextT;
 bool FindRedir(const CUrl& src, CString ct, const CString& body, CAtlList<CString>& urls, CAutoPtrList<CAtlRegExpT>& res)
 {
     POSITION pos = res.GetHeadPosition();
-    bool bDetectHLS = false;
     while (pos) {
         CAtlRegExpT* re = res.GetNext(pos);
 
@@ -1948,18 +1938,6 @@ bool FindRedir(const CUrl& src, CString ct, const CString& body, CAtlList<CStrin
 
             if (url.CompareNoCase(_T("asf path")) == 0) {
                 continue;
-            }
-            if (url.Find(_T("EXTM3U")) == 0 || url.Find(_T("#EXTINF")) == 0) {
-                bDetectHLS = true;
-                continue;
-            }
-            // Detect HTTP Live Streaming and let the source filter handle that
-            if (bDetectHLS
-                    && (url.Find(_T("EXT-X-STREAM-INF:")) != -1
-                        || url.Find(_T("EXT-X-TARGETDURATION:")) != -1
-                        || url.Find(_T("EXT-X-MEDIA-SEQUENCE:")) != -1)) {
-                urls.RemoveAll();
-                break;
             }
 
             CUrl dst;
@@ -2034,8 +2012,6 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
 {
     CUrl url;
     CString ct, body;
-
-    fn.Trim();
 
     if (fn.Find(_T("://")) >= 0) {
         url.CrackUrl(fn);
@@ -2140,10 +2116,6 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
                 }
                 if (field == "content-type" && !sl2.IsEmpty()) {
                     ct = sl2.GetHead();
-                    int iEndContentType = ct.Find(_T(';'));
-                    if (iEndContentType > 0) {
-                        ct.Truncate(iEndContentType);
-                    }
                 }
             }
 
@@ -2172,11 +2144,8 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
                 }
             }
 
-            if (redir
-                    && (ct == _T("audio/x-scpls") || ct == _T("audio/scpls")
-                        || ct == _T("audio/x-mpegurl") || ct == _T("audio/mpegurl")
-                        || ct == _T("text/plain"))) {
-                while (body.GetLength() < 64 * 1024) { // should be enough for a playlist...
+            if (redir && (ct == _T("audio/x-scpls") || ct == _T("audio/x-mpegurl"))) {
+                while (body.GetLength() < 4 * 1024) { // should be enough for a playlist...
                     CStringA str;
                     str.ReleaseBuffer(s.Receive(str.GetBuffer(256), 256)); // SOCKET_ERROR == -1, also suitable for ReleaseBuffer
                     if (str.IsEmpty()) {
@@ -2187,17 +2156,6 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
             }
         }
     } else if (!fn.IsEmpty()) {
-        FILE* f = nullptr;
-        if (!_tfopen_s(&f, fn, _T("rb"))) {
-            CStringA str;
-            str.ReleaseBufferSetLength((int)fread(str.GetBuffer(10240), 1, 10240, f));
-            body = AToT(str);
-            fclose(f);
-        }
-    }
-
-    // Try to guess from the extension if we don't have much info yet
-    if (!fn.IsEmpty() && (ct.IsEmpty() || ct == _T("text/plain"))) {
         CPath p(fn);
         CString ext = p.GetExtension().MakeLower();
         if (ext == _T(".asx")) {
@@ -2210,10 +2168,16 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
             ct = _T("application/x-quicktimeplayer");
         } else if (ext == _T(".mpcpl")) {
             ct = _T("application/x-mpc-playlist");
-        } else if (ext == _T(".ram")) {
-            ct = _T("audio/x-pn-realaudio");
         } else if (ext == _T(".bdmv")) {
             ct = _T("application/x-bdmv-playlist");
+        }
+
+        FILE* f = nullptr;
+        if (!_tfopen_s(&f, fn, _T("rb"))) {
+            CStringA str;
+            str.ReleaseBufferSetLength((int)fread(str.GetBuffer(10240), 1, 10240, f));
+            body = AToT(str);
+            fclose(f);
         }
     }
 
@@ -2240,16 +2204,16 @@ CStringA GetContentType(CString fn, CAtlList<CString>* redir)
             }
             // Ref#n= ...://...\n
             re.Attach(DEBUG_NEW CAtlRegExpT());
-            if (re && REPARSE_ERROR_OK == re->Parse(_T("Ref\\z\\b*=\\b*[\"]*{[a-zA-Z]+://[^\n\"]+}"), FALSE)) {
+            if (re && REPARSE_ERROR_OK == re->Parse(_T("Ref\\z\\b*=\\b*[\"]*{([a-zA-Z]+://[^\n\"]+}"), FALSE)) {
                 res.AddTail(re);
             }
-        } else if (ct == _T("audio/x-scpls") || ct == _T("audio/scpls")) {
+        } else if (ct == _T("audio/x-scpls")) {
             // File1=...\n
             re.Attach(DEBUG_NEW CAtlRegExp<>());
             if (re && REPARSE_ERROR_OK == re->Parse(_T("file\\z\\b*=\\b*[\"]*{[^\n\"]+}"), FALSE)) {
                 res.AddTail(re);
             }
-        } else if (ct == _T("audio/x-mpegurl") || ct == _T("audio/mpegurl")) {
+        } else if (ct == _T("audio/x-mpegurl")) {
             // #comment
             // ...
             re.Attach(DEBUG_NEW CAtlRegExp<>());
@@ -2397,6 +2361,7 @@ void CMPlayerCApp::UpdateColorControlRange(bool isEVR)
     }
 }
 
+#include "CAdManager.h"
 VMR9ProcAmpControlRange* CMPlayerCApp::GetVMR9ColorControl(ControlType nFlag)
 {
     switch (nFlag) {

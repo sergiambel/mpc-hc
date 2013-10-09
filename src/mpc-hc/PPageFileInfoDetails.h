@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2012 see Authors.txt
  *
  * This file is part of MPC-HC.
  *
@@ -32,25 +32,27 @@ class CPPageFileInfoDetails : public CPropertyPage
     DECLARE_DYNAMIC(CPPageFileInfoDetails)
 
 private:
+    CComPtr<IFilterGraph> m_pFG;
+    CComPtr<ISubPicAllocatorPresenter> m_pCAP;
+
     HICON m_hIcon;
 
-    void InitEncodingText(IFilterGraph* pFG);
+    void InitEncoding();
 
 public:
-    CPPageFileInfoDetails(CString path, IFilterGraph* pFG, ISubPicAllocatorPresenter* pCAP, IFileSourceFilter* pFSF);
+    CPPageFileInfoDetails(CString fn, IFilterGraph* pFG, ISubPicAllocatorPresenter* pCAP);
     virtual ~CPPageFileInfoDetails();
 
     // Dialog Data
     enum { IDD = IDD_FILEPROPDETAILS };
 
     CStatic m_icon;
-    CString m_fn, m_path;
+    CString m_fn;
     CString m_type;
     CString m_size;
     CString m_time;
     CString m_res;
     CString m_created;
-    CString m_encodingtext;
     CEdit   m_encoding;
 
 protected:

@@ -43,7 +43,6 @@ CDeCSSInputPin::CDeCSSInputPin(TCHAR* pObjectName, CTransformFilter* pFilter, HR
 {
     ZeroMemory(m_Challenge, sizeof(m_Challenge));
     ZeroMemory(m_KeyCheck, sizeof(m_KeyCheck));
-    ZeroMemory(m_Key, sizeof(m_Key));
     ZeroMemory(m_DiscKey, sizeof(m_DiscKey));
     ZeroMemory(m_TitleKey, sizeof(m_TitleKey));
 }
@@ -245,7 +244,7 @@ STDMETHODIMP CDeCSSInputPin::Set(REFGUID PropSet, ULONG Id, LPVOID pInstanceData
         case AM_PROPERTY_DVDCOPY_DVD_KEY1: { // 2. auth: receive our drive-encrypted nonce word and decrypt it for verification
             AM_DVDCOPY_BUSKEY* pKey1 = (AM_DVDCOPY_BUSKEY*)pPropertyData;
             for (int i = 0; i < 5; i++) {
-                m_Key[i] = pKey1->BusKey[4 - i];
+                m_Key[i] =  pKey1->BusKey[4 - i];
             }
 
             m_varient = -1;

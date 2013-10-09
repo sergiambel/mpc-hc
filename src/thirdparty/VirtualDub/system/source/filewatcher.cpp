@@ -8,7 +8,6 @@
 VDFileWatcher::VDFileWatcher()
 	: mChangeHandle(INVALID_HANDLE_VALUE)
 	, mLastWriteTime(0)
-	, mbWatchDir(false)
 	, mbRepeatRequested(false)
 	, mbThunksInited(false)
 	, mpThunk(NULL)
@@ -46,43 +45,6 @@ void VDFileWatcher::Init(const wchar_t *file, IVDFileWatcherCallback *callback) 
 	mLastWriteTime = VDFileGetLastWriteTime(mPath.c_str());
 	mpCB = callback;
 	mbRepeatRequested = false;
-	mbWatchDir = false;
-
-	if (callback) {
-		if (!mbThunksInited)
-			mbThunksInited = VDInitThunkAllocator();
-
-		if (mbThunksInited) {
-			mpThunk = VDCreateFunctionThunkFromMethod(this, &VDFileWatcher::StaticTimerCallback, true);
-
-			if (mpThunk) {
-				mTimerId = SetTimer(NULL, 0, 1000, (TIMERPROC)mpThunk);
-			}
-		}
-	}
-}
-
-void VDFileWatcher::InitDir(const wchar_t *path, bool subdirs, IVDFileWatcherCallback *callback) {
-	Shutdown();
-
-	const DWORD flags
-		= FILE_NOTIFY_CHANGE_SIZE
-		| FILE_NOTIFY_CHANGE_ATTRIBUTES
-		| FILE_NOTIFY_CHANGE_LAST_WRITE
-		| FILE_NOTIFY_CHANGE_FILE_NAME
-		| FILE_NOTIFY_CHANGE_CREATION;
-	if (VDIsWindowsNT())
-		mChangeHandle = FindFirstChangeNotificationW(path, subdirs, flags);
-	else
-		mChangeHandle = FindFirstChangeNotificationA(VDTextWToA(path).c_str(), subdirs, flags);
-
-	if (mChangeHandle == INVALID_HANDLE_VALUE)
-		throw MyError("Unable to monitor path: %ls", path);
-
-	mPath = path;
-	mpCB = callback;
-	mbRepeatRequested = false;
-	mbWatchDir = true;
 
 	if (callback) {
 		if (!mbThunksInited)
@@ -130,14 +92,12 @@ bool VDFileWatcher::Wait(uint32 delay) {
 
 	FindNextChangeNotification(mChangeHandle);
 
-	if (!mbWatchDir) {
-		uint64 t = VDFileGetLastWriteTime(mPath.c_str());
+	uint64 t = VDFileGetLastWriteTime(mPath.c_str());
 
-		if (mLastWriteTime == t)
-			return false;
+	if (mLastWriteTime == t)
+		return false;
 
-		mLastWriteTime = t;
-	}
+	mLastWriteTime = t;
 	return true;
 }
 

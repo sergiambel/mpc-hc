@@ -37,7 +37,7 @@ Website:            http://mpc-hc.org
 Source code:        https://github.com/mpc-hc
 Support Trac:       https://trac.mpc-hc.org
 IRC Channel:        #mpc-hc / #mpc-hc-dev at Freenode (http://webchat.freenode.net/)
-Donations:          http://mpc-hc.org/donate/
+Donations:          http://sourceforge.net/donate/index.php?group_id=170561
 
 
 For the people involved in the development, see Authors.txt.
@@ -51,13 +51,17 @@ MPC-HC makes use of the following third-party code:
 Project             License                     Website
 --------------------------------------------------------------------
 ATL Server          Ms-LPL                      http://atlserver.codeplex.com/
+Bento4              GPLv2                       http://www.bok.net/trac/bento4/
 CLineNumberEdit     -                           http://www.codeproject.com/Articles/6385/Controls-in-controls-A-line-numbering-edit-box
 CSizingControlBar   GPLv2                       http://www.datamekanix.com/sizecbar/
-LAV Filters         GPLv2                       http://code.google.com/p/lavfilters/
+Detours             MSR-SSLA                    http://research.microsoft.com/en-us/projects/detours/
+FFmpeg              GPLv2                       http://www.ffmpeg.org/
+libflac             GPLv2 / New BSD License     http://flac.sourceforge.net/
+libmpeg2            GPLv2                       http://libmpeg2.sourceforge.net/
+libogg              New BSD License             http://www.xiph.org/
 Little CMS          MIT License                 http://www.littlecms.com/
 Logitech SDK        -                           -
-MediaInfoLib        Simplified BSD License      http://mediaarea.net/MediaInfo
-Mhook               MIT License                 http://codefromthe70s.org/mhook23.aspx
+MediaInfoLib        Simplified BSD License      http://mediainfo.sourceforge.net/
 MultiMon            CPOL                        http://www.codeproject.com/KB/GDI/multimon.aspx
 QuickTime SDK       -                           http://developer.apple.com/quicktime/
 RARFileSource       GPLv2+                      http://www.v12pwr.com/RARFileSource/

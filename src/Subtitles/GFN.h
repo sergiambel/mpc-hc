@@ -35,7 +35,7 @@ enum exttype {
     EXTXSS,
     EXTRT
 };
-extern LPCTSTR exttypestr[];
+extern TCHAR* exttypestr[];
 
 typedef struct {
     CString fn; /*exttype ext;*/

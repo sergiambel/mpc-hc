@@ -282,33 +282,19 @@ HRESULT CAudioSwitcherFilter::Transform(IMediaSample* pIn, IMediaSample* pOut)
         return S_OK;
     }
 
-    bool bDownSampleTo441 = (m_fDownSampleTo441
-                             && wfe->nSamplesPerSec > 44100 && wfeout->nSamplesPerSec == 44100
-                             && wfe->wBitsPerSample <= 16 && fPCM);
-
-    BYTE* pTmp = nullptr;
-    BYTE* pDst = nullptr;
-    if (bDownSampleTo441 && m_fCustomChannelMapping && wfe->nChannels <= AS_MAX_CHANNELS) {
-        pDst = pTmp = DEBUG_NEW BYTE[len * bps * wfeout->nChannels];
-    } else {
-        pDst = pDataOut;
-    }
-
     if (m_fCustomChannelMapping && wfe->nChannels <= AS_MAX_CHANNELS) {
         size_t channelsCount = m_chs[wfe->nChannels - 1].GetCount();
         ASSERT(channelsCount == 0 || wfeout->nChannels == channelsCount);
-
-        int srcstep = bps * wfe->nChannels;
-        int dststep = bps * wfeout->nChannels;
-        int channels = wfe->nChannels;
-
         if (channelsCount > 0 && wfeout->nChannels == channelsCount) {
             for (int i = 0; i < wfeout->nChannels; i++) {
                 DWORD mask = m_chs[wfe->nChannels - 1][i].Channel;
 
                 BYTE* src = pDataIn;
-                BYTE* dst = &pDst[bps * i];
+                BYTE* dst = &pDataOut[bps * i];
 
+                int srcstep = bps * wfe->nChannels;
+                int dststep = bps * wfeout->nChannels;
+                int channels = wfe->nChannels;
                 if (fPCM) {
                     if (wfe->wBitsPerSample == 8) {
                         for (int k = 0; k < len; k++, src += srcstep, dst += dststep) {
@@ -355,13 +341,15 @@ HRESULT CAudioSwitcherFilter::Transform(IMediaSample* pIn, IMediaSample* pOut)
         }
     }
 
-    if (bDownSampleTo441) {
+    if (m_fDownSampleTo441
+            && wfe->nSamplesPerSec > 44100 && wfeout->nSamplesPerSec == 44100
+            && wfe->wBitsPerSample <= 16 && fPCM) {
         if (BYTE* buff = DEBUG_NEW BYTE[len * bps]) {
             for (int ch = 0; ch < wfeout->nChannels; ch++) {
                 ZeroMemory(buff, len * bps);
 
                 for (int i = 0; i < len; i++) {
-                    memcpy(buff + i * bps, (char*)pDst + (ch + i * wfeout->nChannels)*bps, bps);
+                    memcpy(buff + i * bps, (char*)pDataOut + (ch + i * wfeout->nChannels)*bps, bps);
                 }
 
                 m_pResamplers[ch]->Downsample(buff, len, buff, lenout);
@@ -373,8 +361,6 @@ HRESULT CAudioSwitcherFilter::Transform(IMediaSample* pIn, IMediaSample* pOut)
 
             delete [] buff;
         }
-
-        delete [] pTmp;
     }
 
     if (m_fNormalize || m_boostFactor > 1) {

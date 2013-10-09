@@ -25,7 +25,6 @@
 #include "GolombBuffer.h"
 #include "Mpeg2SectionData.h"
 #include "FreeviewEPGDecode.h"
-#include "resource.h"
 
 
 #define BeginEnumDescriptors(gb, nType, nLength)                    \

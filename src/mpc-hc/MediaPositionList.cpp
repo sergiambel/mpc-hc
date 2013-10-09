@@ -20,7 +20,6 @@
 
 #include "stdafx.h"
 #include "MediaPositionList.h"
-#include "SettingsDefines.h"
 
 // Helper functions
 
@@ -153,29 +152,6 @@ bool CFilePositionList::AddEntry(LPCTSTR lpszFileName)
     SaveAsync();
 
     return true;
-}
-
-bool CFilePositionList::RemoveEntry(LPCTSTR lpszFileName)
-{
-    // Look for the file position
-    POSITION pos = GetHeadPosition();
-    while (pos) {
-        FILE_POSITION& filePosition = GetAt(pos);
-
-        // If we find it, we can remove it
-        if (filePosition.strFile == lpszFileName) {
-            RemoveAt(pos);
-
-            // Save asynchronously the list
-            SaveAsync();
-
-            return true;
-        }
-
-        GetNext(pos);
-    }
-
-    return false;
 }
 
 // CDVDPositionList

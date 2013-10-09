@@ -1,14 +1,16 @@
 #include "rar.hpp"
 
+#ifndef _WIN_CE
 static int SleepTime=0;
 
 void InitSystemOptions(int SleepTime)
 {
   ::SleepTime=SleepTime;
 }
+#endif
 
 
-#if !defined(SFX_MODULE) && !defined(SETUP)
+#if !defined(SFX_MODULE) && !defined(_WIN_CE) && !defined(SETUP)
 void SetPriority(int Priority)
 {
 #ifdef _WIN_ALL
@@ -72,7 +74,7 @@ void Wait()
 {
   if (ErrHandler.UserBreak)
     ErrHandler.Exit(RARX_USERBREAK);
-#if defined(_WIN_ALL) && !defined(SFX_MODULE)
+#if defined(_WIN_ALL) && !defined(_WIN_CE) && !defined(SFX_MODULE)
   if (SleepTime!=0)
     Sleep(SleepTime);
 #endif
@@ -82,7 +84,7 @@ void Wait()
 
 
 
-#if defined(_WIN_ALL) && !defined(SFX_MODULE) && !defined(SHELL_EXT) && !defined(SETUP)
+#if defined(_WIN_ALL) && !defined(_WIN_CE) && !defined(SFX_MODULE) && !defined(SHELL_EXT) && !defined(SETUP)
 void Shutdown()
 {
   HANDLE hToken;

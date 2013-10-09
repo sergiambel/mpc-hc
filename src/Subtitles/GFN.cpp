@@ -21,18 +21,32 @@
 
 #include "stdafx.h"
 #include <io.h>
-#include <atl/atlrx.h>
 #include "TextFile.h"
 #include "GFN.h"
 
-LPCTSTR exttypestr[] = {
+TCHAR* exttypestr[] = {
     _T("srt"), _T("sub"), _T("smi"), _T("psb"),
     _T("ssa"), _T("ass"), _T("idx"), _T("usf"),
     _T("xss"), _T("txt"), _T("rt"), _T("sup")
 };
 
-static LPCTSTR separators = _T(".\\-_");
-static LPCTSTR extListVid = _T("(avi)|(mkv)|(mp4)|((m2)?ts)");
+static TCHAR* ext[3][_countof(exttypestr)] = {
+    {
+        _T(".srt"), _T(".sub"), _T(".smi"), _T(".psb"),
+        _T(".ssa"), _T(".ass"), _T(".idx"), _T(".usf"),
+        _T(".xss"), _T(".txt"), _T(".rt"), _T(".sup")
+    },
+    {
+        _T(".*.srt"), _T(".*.sub"), _T(".*.smi"), _T(".*.psb"),
+        _T(".*.ssa"), _T(".*.ass"), _T(".*.idx"), _T(".*.usf"),
+        _T(".*.xss"), _T(".*.txt"), _T(".*.rt"), _T(".*.sup")
+    },
+    {
+        _T("-*.srt"), _T("-*.sub"), _T("-*.smi"), _T("-*.psb"),
+        _T("-*.ssa"), _T("-*.ass"), _T("-*.idx"), _T("-*.usf"),
+        _T("-*.xss"), _T("-*.txt"), _T("-*.rt"), _T("-*.sup")
+    },
+};
 
 static int SubFileCompare(const void* elem1, const void* elem2)
 {
@@ -42,6 +56,9 @@ static int SubFileCompare(const void* elem1, const void* elem2)
 void GetSubFileNames(CString fn, const CAtlArray<CString>& paths, CAtlArray<SubFile>& ret)
 {
     ret.RemoveAll();
+
+    int extlistnum = _countof(ext);
+    int extsubnum  = _countof(ext[0]);
 
     fn.Replace('\\', '/');
 
@@ -63,27 +80,14 @@ void GetSubFileNames(CString fn, const CAtlArray<CString>& paths, CAtlArray<SubF
 
     CString orgpath = fn.Left(l);
     CString title = fn.Mid(l, l2 - l);
-    int titleLength = title.GetLength();
-    //CString filename = title + _T(".nooneexpectsthespanishinquisition");
+    CString filename = title + _T(".nooneexpectsthespanishinquisition");
 
     if (!fWeb) {
-        WIN32_FIND_DATA wfd;
-        HANDLE hFile;
+        // struct _tfinddata_t file, file2;
+        // long hFile, hFile2 = 0;
 
-        CString extListSub, regExpSub, regExpVid;
-        for (int i = 0; i < _countof(exttypestr); i++) {
-            extListSub.AppendFormat(_T("(%s)"), exttypestr[i]);
-            if (i < _countof(exttypestr) - 1) {
-                extListSub.AppendChar(_T('|'));
-            }
-        }
-        regExpSub.Format(_T("([%s]+.+)?\\.(%s)$"), separators, extListSub);
-        regExpVid.Format(_T(".+\\.(%s)$"), extListVid);
-
-        CAtlRegExp<CAtlRECharTraits> reSub, reVid;
-        CAtlREMatchContext<CAtlRECharTraits> mc;
-        ENSURE(REPARSE_ERROR_OK == reSub.Parse(regExpSub, FALSE));
-        ENSURE(REPARSE_ERROR_OK == reVid.Parse(regExpVid, FALSE));
+        WIN32_FIND_DATA wfd, wfd2;
+        HANDLE hFile, hFile2;
 
         for (size_t k = 0; k < paths.GetCount(); k++) {
             CString path = paths[k];
@@ -101,42 +105,47 @@ void GetSubFileNames(CString fn, const CAtlArray<CString>& paths, CAtlArray<SubF
             path.Replace(_T("/./"), _T("/"));
             path.Replace('/', '\\');
 
-            CAtlList<CString> subs, vids;
+            // CAtlList<CString> sl;
+
+            bool fEmpty = true;
 
             if ((hFile = FindFirstFile(path + title + _T("*"), &wfd)) != INVALID_HANDLE_VALUE) {
                 do {
-                    CString fn = path + wfd.cFileName;
-                    if (reSub.Match(&wfd.cFileName[titleLength], &mc)) {
-                        subs.AddTail(fn);
-                    } else if (reVid.Match(&wfd.cFileName[titleLength], &mc)) {
-                        // Convert to lower-case and cut the extension for easier matching
-                        vids.AddTail(fn.Left(fn.ReverseFind(_T('.'))).MakeLower());
+                    if (filename.CompareNoCase(wfd.cFileName) != 0) {
+                        fEmpty = false;
+                        // sl.AddTail(path + file.name);
                     }
                 } while (FindNextFile(hFile, &wfd));
 
                 FindClose(hFile);
             }
 
-            POSITION posSub = subs.GetHeadPosition();
-            while (posSub) {
-                CString& fn = subs.GetNext(posSub);
-                CString fnlower = fn;
-                fnlower.MakeLower();
+            // TODO: use 'sl' in the next step to find files (already a nice speedup as it is now...)
+            if (fEmpty) {
+                continue;
+            }
 
-                // Check if there is an exact match for another video file
-                bool bMatchAnotherVid = false;
-                POSITION posVid = vids.GetHeadPosition();
-                while (posVid) {
-                    if (fnlower.Find(vids.GetNext(posVid)) == 0) {
-                        bMatchAnotherVid = true;
-                        break;
+            for (ptrdiff_t j = 0; j < extlistnum; j++) {
+                for (ptrdiff_t i = 0; i < extsubnum; i++) {
+                    if ((hFile = FindFirstFile(path + title + ext[j][i], &wfd)) != INVALID_HANDLE_VALUE) {
+                        do {
+                            CString fn2 = path + wfd.cFileName;
+
+                            hFile2 = INVALID_HANDLE_VALUE;
+
+                            if (j == 0 || (hFile2 = FindFirstFile(fn2.Left(fn2.ReverseFind('.')) + _T(".avi"), &wfd2)) == INVALID_HANDLE_VALUE) {
+                                SubFile f;
+                                f.fn = fn2;
+                                ret.Add(f);
+                            }
+
+                            if (hFile2 != INVALID_HANDLE_VALUE) {
+                                FindClose(hFile2);
+                            }
+                        } while (FindNextFile(hFile, &wfd));
+
+                        FindClose(hFile);
                     }
-                }
-
-                if (!bMatchAnotherVid) {
-                    SubFile f;
-                    f.fn = fn;
-                    ret.Add(f);
                 }
             }
         }

@@ -26,8 +26,6 @@ void VDLinearAllocator::Clear() {
 	}
 
 	mpBlocks = NULL;
-	mpAllocPtr = NULL;
-	mAllocLeft = 0;
 }
 
 void *VDLinearAllocator::AllocateSlow(size_t bytes) {

@@ -446,40 +446,23 @@ bool CWebClientSocket::OnInfo(CStringA& hdr, CStringA& body, CStringA& mime)
 
     CString positionstring, durationstring, versionstring, sizestring;
     versionstring.Format(L"%s", AfxGetMyApp()->m_strVersion);
+    CPath file(m_pMainFrame->m_wndPlaylistBar.GetCurFileName());
+    file.StripPath();
+    file.RemoveExtension();
 
     positionstring.Format(_T("%02d:%02d:%02d"), (pos / 3600000), (pos / 60000) % 60, (pos / 1000) % 60);
     durationstring.Format(_T("%02d:%02d:%02d"), (dur / 3600000), (dur / 60000) % 60, (dur / 1000) % 60);
 
-    CPath file(m_pMainFrame->GetFileName());
-    file.RemoveExtension();
-
-    __int64 size = 0;
-    if (CComQIPtr<IBaseFilter> pBF = m_pMainFrame->m_pFSF) {
-        BeginEnumPins(pBF, pEP, pPin) {
-            if (CComQIPtr<IAsyncReader> pAR = pPin) {
-                LONGLONG total, available;
-                if (SUCCEEDED(pAR->Length(&total, &available))) {
-                    size = total;
-                    break;
-                }
-            }
-        }
-        EndEnumPins;
+    WIN32_FIND_DATA wfd;
+    HANDLE hFind = FindFirstFile(m_pMainFrame->m_wndPlaylistBar.GetCurFileName(), &wfd);
+    if (hFind != INVALID_HANDLE_VALUE) {
+        FindClose(hFind);
+        __int64 size = (__int64(wfd.nFileSizeHigh) << 32) | wfd.nFileSizeLow;
+        const int MAX_FILE_SIZE_BUFFER = 65;
+        TCHAR szFileSize[MAX_FILE_SIZE_BUFFER];
+        StrFormatByteSizeW(size, szFileSize, MAX_FILE_SIZE_BUFFER);
+        sizestring.Format(L"%s", szFileSize);
     }
-
-    if (size == 0) {
-        WIN32_FIND_DATA wfd;
-        HANDLE hFind = FindFirstFile(m_pMainFrame->m_wndPlaylistBar.GetCurFileName(), &wfd);
-        if (hFind != INVALID_HANDLE_VALUE) {
-            FindClose(hFind);
-            size = (__int64(wfd.nFileSizeHigh) << 32) | wfd.nFileSizeLow;
-        }
-    }
-
-    const int MAX_FILE_SIZE_BUFFER = 65;
-    TCHAR szFileSize[MAX_FILE_SIZE_BUFFER];
-    StrFormatByteSizeW(size, szFileSize, MAX_FILE_SIZE_BUFFER);
-    sizestring.Format(L"%s", szFileSize);
 
     m_pWebServer->LoadPage(IDR_HTML_INFO, body, AToT(m_path));
     body.Replace("[version]", UTF8(versionstring));
@@ -493,7 +476,7 @@ bool CWebClientSocket::OnInfo(CStringA& hdr, CStringA& body, CStringA& mime)
 bool CWebClientSocket::OnBrowser(CStringA& hdr, CStringA& body, CStringA& mime)
 {
     CAtlList<CStringA> rootdrives;
-    for (TCHAR drive[] = _T("A:"); drive[0] <= _T('Z'); drive[0]++) {
+    for (TCHAR drive[] = _T("A:"); drive[0] <= 'Z'; drive[0]++) {
         if (GetDriveType(drive) != DRIVE_NO_ROOT_DIR) {
             rootdrives.AddTail(CStringA(drive) + '\\');
         }
@@ -656,10 +639,10 @@ bool CWebClientSocket::OnBrowser(CStringA& hdr, CStringA& body, CStringA& mime)
                     files += "<tr class=\"noext\">\r\n";
                 }
                 files +=
-                    "<td class=\"browser-td\"><a href=\"[path]?path=" + UTF8Arg(fullpath) + "\">" + UTF8(fd.cFileName) + "</a></td>\r\n"
-                    "<td class=\"browser-td\"><span class=\"nobr\">" + UTF8(type) + "</span></td>\r\n"
-                    "<td class=\"browser-td align-right\"><span class=\"nobr\">" + size + "</span></td>\r\n"
-                    "<td class=\"browser-td\"><span class=\"nobr\">" + CStringA(CTime(fd.ftLastWriteTime).Format(_T("%Y.%m.%d %H:%M"))) + "</span></td>\r\n";
+                    "<td><a href=\"[path]?path=" + UTF8Arg(fullpath) + "\">" + UTF8(fd.cFileName) + "</a></td>\r\n"
+                    "<td><span class=\"nobr\">" + UTF8(type) + "</span></td>\r\n"
+                    "<td align=\"right\"><span class=\"nobr\">" + size + "</span></td>\r\n"
+                    "<td><span class=\"nobr\">" + CStringA(CTime(fd.ftLastWriteTime).Format(_T("%Y.%m.%d %H:%M"))) + "</span></td>\r\n";
                 files += "</tr>\r\n";
             } while (FindNextFile(hFind, &fd));
 

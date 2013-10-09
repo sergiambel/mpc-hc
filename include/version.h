@@ -52,10 +52,10 @@
 #define MAKE_STR(x)         DO_MAKE_STR(x)
 
 #define MPC_VERSION_MAJOR   1
-#define MPC_VERSION_MINOR   7
-#define MPC_VERSION_PATCH   0
+#define MPC_VERSION_MINOR   6
+#define MPC_VERSION_PATCH   9
 
-#define MPC_NIGHTLY_RELEASE 1
+#define MPC_BETA_RELEASE    1
 
 #define MPC_COMP_NAME_STR       _T("MPC-HC Team")
 #define MPC_COPYRIGHT_STR       _T("Copyright © 2002-2013 all contributors, see Authors.txt")
@@ -69,15 +69,12 @@
 #define MPC_VERSION_NUM         MPC_VERSION_MAJOR,MPC_VERSION_MINOR,MPC_VERSION_PATCH,0
 #define MPC_VERSION_STR         MAKE_STR(MPC_VERSION_MAJOR) _T(".") \
                                 MAKE_STR(MPC_VERSION_MINOR) _T(".") \
-                                MAKE_STR(MPC_VERSION_PATCH)
+                                MAKE_STR(MPC_VERSION_PATCH) _T(".0")
 #define MPC_VERSION_STR_FULL    MPC_VERSION_STR
 
 #else // !NO_VERSION_REV_NEEDED
 
 #define MPC_VERSION_NUM         MPC_VERSION_MAJOR,MPC_VERSION_MINOR,MPC_VERSION_PATCH,MPC_VERSION_REV
-
-#if MPC_NIGHTLY_RELEASE
-
 #define MPC_VERSION_STR         MAKE_STR(MPC_VERSION_MAJOR) _T(".") \
                                 MAKE_STR(MPC_VERSION_MINOR) _T(".") \
                                 MAKE_STR(MPC_VERSION_PATCH) _T(".") \
@@ -85,28 +82,14 @@
 #define MPC_VERSION_STR_FULL    MAKE_STR(MPC_VERSION_MAJOR) _T(".") \
                                 MAKE_STR(MPC_VERSION_MINOR) _T(".") \
                                 MAKE_STR(MPC_VERSION_PATCH) _T(".") \
-                                MAKE_STR(MPC_VERSION_REV) \
-                                MPC_VERSION_ADDITIONAL
-
-#else // !MPC_NIGHTLY_RELEASE
-
-#define MPC_VERSION_STR         MAKE_STR(MPC_VERSION_MAJOR) _T(".") \
-                                MAKE_STR(MPC_VERSION_MINOR) _T(".") \
-                                MAKE_STR(MPC_VERSION_PATCH)
-#define MPC_VERSION_STR_FULL    MAKE_STR(MPC_VERSION_MAJOR) _T(".") \
-                                MAKE_STR(MPC_VERSION_MINOR) _T(".") \
-                                MAKE_STR(MPC_VERSION_PATCH) \
-                                MPC_VERSION_ADDITIONAL
-
-#endif // MPC_NIGHTLY_RELEASE
-
+                                MPC_VERSION_REV_FULL
 #endif // NO_VERSION_REV_NEEDED
 
 #endif // ISPP_INVOKED
 
 
-#if MPC_NIGHTLY_RELEASE
-#define MPC_VERSION_NIGHTLY     _T("Nightly")
+#if MPC_BETA_RELEASE
+#define MPC_VERSION_BETA        _T("Beta")
 #endif
 
 #ifdef _WIN64

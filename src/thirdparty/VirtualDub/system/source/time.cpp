@@ -232,7 +232,6 @@ void VDCallbackTimer::ThreadRun() {
 VDLazyTimer::VDLazyTimer()
 	: mTimerId(0)
 	, mpCB(NULL)
-	, mbPeriodic(false)
 {
 	if (!VDInitThunkAllocator())
 		throw MyError("Unable to initialize thunk allocator.");
@@ -254,15 +253,6 @@ VDLazyTimer::~VDLazyTimer() {
 void VDLazyTimer::SetOneShot(IVDTimerCallback *pCB, uint32 delay) {
 	Stop();
 
-	mbPeriodic = false;
-	mpCB = pCB;
-	mTimerId = SetTimer(NULL, 0, delay, (TIMERPROC)mpThunk);
-}
-
-void VDLazyTimer::SetPeriodic(IVDTimerCallback *pCB, uint32 delay) {
-	Stop();
-
-	mbPeriodic = true;
 	mpCB = pCB;
 	mTimerId = SetTimer(NULL, 0, delay, (TIMERPROC)mpThunk);
 }
@@ -275,8 +265,7 @@ void VDLazyTimer::Stop() {
 }
 
 void VDLazyTimer::StaticTimeCallback(VDZHWND hwnd, VDZUINT msg, VDZUINT_PTR id, VDZDWORD time) {
-	if (!mbPeriodic)
-		Stop();
+	Stop();
 
 	if (mpCB)
 		mpCB->TimerCallback();

@@ -436,7 +436,7 @@ void File_Lxf::Read_Buffer_Continue()
     #if MEDIAINFO_DEMUX
         if (DemuxParser)
         {
-            Open_Buffer_Continue(DemuxParser, Buffer+Buffer_Offset, 0, false);
+            Open_Buffer_Continue(DemuxParser, Buffer+Buffer_Offset, 0);
             if (!Config->Demux_EventWasSent)
                 DemuxParser=NULL; //No more need of it
         }
@@ -1356,7 +1356,6 @@ void File_Lxf::Audio_Stream(size_t Pos)
             File_SmpteSt0337* Parser=new File_SmpteSt0337;
             Parser->Container_Bits=SampleSize;
             Parser->Endianness='L';
-            Parser->Aligned=true;
 
             Audios[Pos].Parsers.push_back(Parser);
         }
@@ -1632,9 +1631,6 @@ void File_Lxf::Video_Stream_1()
         #endif
     }
     Skip_XX((Lines_Allocated-Lines_Used)*BytesPerLine,          "Unused lines");
-
-    if (Element_Offset<Element_Size)
-        Skip_XX(Element_Size-Element_Offset,                    "Unknown");
 }
 
 //---------------------------------------------------------------------------

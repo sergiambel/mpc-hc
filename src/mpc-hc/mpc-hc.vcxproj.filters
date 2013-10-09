@@ -22,9 +22,6 @@
     <Filter Include="Resource Files\web\img">
       <UniqueIdentifier>{85c6230e-fa6b-497b-8d98-d4a066c86f48}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\LAVFilters">
-      <UniqueIdentifier>{3e7db9d0-2a51-4f12-b56d-220d267ef21b}</UniqueIdentifier>
-    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AppSettings.cpp">
@@ -345,6 +342,18 @@
     <ClCompile Include="AboutDlg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\thirdparty\mfc\afxctrlcontainer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\thirdparty\mfc\afxglobals.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\thirdparty\mfc\afxmaskededit.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\thirdparty\mfc\winmdi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="MPCPngImage.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -364,9 +373,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="FreeviewEPGDecode.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="FGFilterLAV.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -710,6 +716,9 @@
     <ClInclude Include="AboutDlg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\thirdparty\mfc\afxmaskededit.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\include\version.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -733,18 +742,6 @@
     </ClInclude>
     <ClInclude Include="FreeviewEPGDecode.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="FGFilterLAV.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\thirdparty\LAVFilters\LAVAudioSettings.h">
-      <Filter>Header Files\LAVFilters</Filter>
-    </ClInclude>
-    <ClInclude Include="..\thirdparty\LAVFilters\LAVSplitterSettings.h">
-      <Filter>Header Files\LAVFilters</Filter>
-    </ClInclude>
-    <ClInclude Include="..\thirdparty\LAVFilters\LAVVideoSettings.h">
-      <Filter>Header Files\LAVFilters</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1025,13 +1022,11 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
+    <CustomBuildStep Include="res\mpc-hc.exe.manifest">
+      <Filter>Resource Files</Filter>
+    </CustomBuildStep>
     <CustomBuildStep Include="res\mplayerc.rc2">
       <Filter>Resource Files</Filter>
     </CustomBuildStep>
-  </ItemGroup>
-  <ItemGroup>
-    <Object Include="..\thirdparty\LAVFilters\obj\GCCInfo.o">
-      <Filter>Source Files</Filter>
-    </Object>
   </ItemGroup>
 </Project>

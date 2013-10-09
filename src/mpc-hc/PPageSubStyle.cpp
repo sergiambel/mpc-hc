@@ -43,7 +43,7 @@ CPPageSubStyle::CPPageSubStyle()
     , m_linkalphasliders(FALSE)
     , m_iRelativeTo(0)
     , m_fUseDefaultStyle(true)
-    , m_stss(AfxGetAppSettings().subtitlesDefStyle)
+    , m_stss(AfxGetAppSettings().subdefstyle)
 {
 }
 
@@ -67,7 +67,6 @@ void CPPageSubStyle::AskColor(int i)
     if (dlg.DoModal() == IDOK) {
         m_stss.colors[i] = dlg.m_cc.rgbResult;
         m_color[i].Invalidate();
-        SetModified();
     }
 }
 
@@ -215,7 +214,7 @@ BOOL CPPageSubStyle::OnApply()
     }
 
     if (m_fUseDefaultStyle) {
-        STSStyle& stss = AfxGetAppSettings().subtitlesDefStyle;
+        STSStyle& stss = AfxGetAppSettings().subdefstyle;
         if (stss != m_stss) {
             stss = m_stss;
             if (CMainFrame* pFrame = dynamic_cast<CMainFrame*>(AfxGetMainWnd())) {

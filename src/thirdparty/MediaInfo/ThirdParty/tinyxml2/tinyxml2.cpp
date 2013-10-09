@@ -136,7 +136,12 @@ char* StrPair::ParseName( char* p )
         return 0;
     }
 
-    while( *p && ( p == start ? XMLUtil::IsNameStartChar( *p ) : XMLUtil::IsNameChar( *p ) )) {
+    while( *p && (
+                XMLUtil::IsAlphaNum( (unsigned char) *p )
+                || *p == '_'
+                || *p == ':'
+                || (*p == '-' && p>start )		// can be in a name, but not lead it.
+                || (*p == '.' && p>start ) )) {	// can be in a name, but not lead it.
         ++p;
     }
 
@@ -321,8 +326,6 @@ void XMLUtil::ConvertUTF32ToUTF8( unsigned long input, char* output, int* length
         case 1:
             --output;
             *output = (char)(input | FIRST_BYTE_MARK[*length]);
-        default:
-            break;
     }
 }
 
@@ -425,13 +428,13 @@ void XMLUtil::ToStr( bool v, char* buffer, int bufferSize )
 
 void XMLUtil::ToStr( float v, char* buffer, int bufferSize )
 {
-    TIXML_SNPRINTF( buffer, bufferSize, "%f", v );
+    TIXML_SNPRINTF( buffer, bufferSize, "%g", v );
 }
 
 
 void XMLUtil::ToStr( double v, char* buffer, int bufferSize )
 {
-    TIXML_SNPRINTF( buffer, bufferSize, "%f", v );
+    TIXML_SNPRINTF( buffer, bufferSize, "%g", v );
 }
 
 
@@ -499,8 +502,8 @@ char* XMLDocument::Identify( char* p, XMLNode** node )
     // What is this thing?
     // - Elements start with a letter or underscore, but xml is reserved.
     // - Comments: <!--
-    // - Declaration: <?
-    // - Everything else is unknown to tinyxml.
+    // - Decleration: <?
+    // - Everthing else is unknown to tinyxml.
     //
 
     static const char* xmlHeader		= { "<?" };
@@ -581,8 +584,7 @@ XMLNode::XMLNode( XMLDocument* doc ) :
     _document( doc ),
     _parent( 0 ),
     _firstChild( 0 ), _lastChild( 0 ),
-    _prev( 0 ), _next( 0 ),
-    _memPool( 0 )
+    _prev( 0 ), _next( 0 )
 {
 }
 
@@ -1227,11 +1229,11 @@ const char* XMLElement::GetText() const
 }
 
 
-XMLError XMLElement::QueryIntText( int* ival ) const
+XMLError XMLElement::QueryIntText( int* _value ) const
 {
     if ( FirstChild() && FirstChild()->ToText() ) {
         const char* t = FirstChild()->ToText()->Value();
-        if ( XMLUtil::ToInt( t, ival ) ) {
+        if ( XMLUtil::ToInt( t, _value ) ) {
             return XML_SUCCESS;
         }
         return XML_CAN_NOT_CONVERT_TEXT;
@@ -1240,11 +1242,11 @@ XMLError XMLElement::QueryIntText( int* ival ) const
 }
 
 
-XMLError XMLElement::QueryUnsignedText( unsigned* uval ) const
+XMLError XMLElement::QueryUnsignedText( unsigned* _value ) const
 {
     if ( FirstChild() && FirstChild()->ToText() ) {
         const char* t = FirstChild()->ToText()->Value();
-        if ( XMLUtil::ToUnsigned( t, uval ) ) {
+        if ( XMLUtil::ToUnsigned( t, _value ) ) {
             return XML_SUCCESS;
         }
         return XML_CAN_NOT_CONVERT_TEXT;
@@ -1253,11 +1255,11 @@ XMLError XMLElement::QueryUnsignedText( unsigned* uval ) const
 }
 
 
-XMLError XMLElement::QueryBoolText( bool* bval ) const
+XMLError XMLElement::QueryBoolText( bool* _value ) const
 {
     if ( FirstChild() && FirstChild()->ToText() ) {
         const char* t = FirstChild()->ToText()->Value();
-        if ( XMLUtil::ToBool( t, bval ) ) {
+        if ( XMLUtil::ToBool( t, _value ) ) {
             return XML_SUCCESS;
         }
         return XML_CAN_NOT_CONVERT_TEXT;
@@ -1266,11 +1268,11 @@ XMLError XMLElement::QueryBoolText( bool* bval ) const
 }
 
 
-XMLError XMLElement::QueryDoubleText( double* dval ) const
+XMLError XMLElement::QueryDoubleText( double* _value ) const
 {
     if ( FirstChild() && FirstChild()->ToText() ) {
         const char* t = FirstChild()->ToText()->Value();
-        if ( XMLUtil::ToDouble( t, dval ) ) {
+        if ( XMLUtil::ToDouble( t, _value ) ) {
             return XML_SUCCESS;
         }
         return XML_CAN_NOT_CONVERT_TEXT;
@@ -1279,11 +1281,11 @@ XMLError XMLElement::QueryDoubleText( double* dval ) const
 }
 
 
-XMLError XMLElement::QueryFloatText( float* fval ) const
+XMLError XMLElement::QueryFloatText( float* _value ) const
 {
     if ( FirstChild() && FirstChild()->ToText() ) {
         const char* t = FirstChild()->ToText()->Value();
-        if ( XMLUtil::ToFloat( t, fval ) ) {
+        if ( XMLUtil::ToFloat( t, _value ) ) {
             return XML_SUCCESS;
         }
         return XML_CAN_NOT_CONVERT_TEXT;
@@ -1353,7 +1355,7 @@ char* XMLElement::ParseAttributes( char* p )
         }
 
         // attribute.
-        if (XMLUtil::IsNameStartChar( *p ) ) {
+        if ( XMLUtil::IsAlpha( *p ) ) {
             XMLAttribute* attrib = new (_document->_attributePool.Alloc() ) XMLAttribute();
             attrib->_memPool = &_document->_attributePool;
 			attrib->_memPool->SetTracked();
@@ -1504,10 +1506,10 @@ XMLDocument::~XMLDocument()
     delete [] _charBuffer;
 
 #if 0
-    _textPool.Trace( "text" );
-    _elementPool.Trace( "element" );
-    _commentPool.Trace( "comment" );
-    _attributePool.Trace( "attribute" );
+    textPool.Trace( "text" );
+    elementPool.Trace( "element" );
+    commentPool.Trace( "comment" );
+    attributePool.Trace( "attribute" );
 #endif
 
 #ifdef DEBUG
@@ -1521,10 +1523,8 @@ XMLDocument::~XMLDocument()
 }
 
 
-void XMLDocument::Clear()
+void XMLDocument::InitDocument()
 {
-    DeleteChildren();
-
     _errorID = XML_NO_ERROR;
     _errorStr1 = 0;
     _errorStr2 = 0;
@@ -1581,7 +1581,8 @@ XMLUnknown* XMLDocument::NewUnknown( const char* str )
 
 XMLError XMLDocument::LoadFile( const char* filename )
 {
-    Clear();
+    DeleteChildren();
+    InitDocument();
     FILE* fp = 0;
 
 #if defined(_MSC_VER) && (_MSC_VER >= 1400 )
@@ -1602,14 +1603,14 @@ XMLError XMLDocument::LoadFile( const char* filename )
 
 XMLError XMLDocument::LoadFile( FILE* fp )
 {
-    Clear();
+    DeleteChildren();
+    InitDocument();
 
     fseek( fp, 0, SEEK_END );
     size_t size = ftell( fp );
     fseek( fp, 0, SEEK_SET );
 
     if ( size == 0 ) {
-        SetError( XML_ERROR_EMPTY_DOCUMENT, 0, 0 );
         return _errorID;
     }
 
@@ -1664,8 +1665,8 @@ XMLError XMLDocument::SaveFile( FILE* fp, bool compact )
 
 XMLError XMLDocument::Parse( const char* p, size_t len )
 {
-	const char* start = p;
-    Clear();
+    DeleteChildren();
+    InitDocument();
 
     if ( !p || !*p ) {
         SetError( XML_ERROR_EMPTY_DOCUMENT, 0, 0 );
@@ -1685,8 +1686,7 @@ XMLError XMLDocument::Parse( const char* p, size_t len )
         return _errorID;
     }
 
-    ptrdiff_t delta = p - start;	// skip initial whitespace, BOM, etc.
-    ParseDeep( _charBuffer+delta, 0 );
+    ParseDeep( _charBuffer, 0 );
     return _errorID;
 }
 

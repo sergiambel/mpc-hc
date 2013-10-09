@@ -32,6 +32,7 @@ class CPPageAudioSwitcher : public CPPageBase
     DECLARE_DYNAMIC(CPPageAudioSwitcher)
 
 private:
+    CComQIPtr<IAudioSwitcherFilter> m_pASF;
     DWORD m_pSpeakerToChannelMap[AS_MAX_CHANNELS][AS_MAX_CHANNELS];
     DWORD m_dwChannelMask;
 
@@ -78,7 +79,6 @@ protected:
     afx_msg void OnEnChangeEdit1();
     afx_msg void OnUpdateAudioSwitcher(CCmdUI* pCmdUI);
     afx_msg void OnUpdateNormalize(CCmdUI* pCmdUI);
-    afx_msg void OnUpdateTimeShift(CCmdUI* pCmdUI);
     afx_msg void OnUpdateChannelMapping(CCmdUI* pCmdUI);
 
     afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);

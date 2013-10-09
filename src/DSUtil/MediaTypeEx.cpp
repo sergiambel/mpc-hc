@@ -366,7 +366,6 @@ CString CMediaTypeEx::GetAudioCodecName(const GUID& subtype, WORD wFormatTag)
         names[WAVE_FORMAT_SIPR]                  = _T("RealAudio SIPR");
         names[WAVE_FORMAT_PS2_PCM]               = _T("PS2 PCM");
         names[WAVE_FORMAT_PS2_ADPCM]             = _T("PS2 ADPCM");
-        names[WAVE_FORMAT_AAC_ADTS]              = _T("AAC"); // Specific to LAV Splitter and LAV Audio Decoder
         // names[] = _T("");
     }
 
@@ -414,8 +413,6 @@ CString CMediaTypeEx::GetAudioCodecName(const GUID& subtype, WORD wFormatTag)
                subtype == MEDIASUBTYPE_SAMR ||
                subtype == MEDIASUBTYPE_SAWB) {
         str = _T("AMR");
-    } else if (subtype == MEDIASUBTYPE_OPUS) {
-        str = _T("Opus");
     } // If the subtype wasn't enough to find the codec name, we try the format tag
     else if (!names.Lookup(wFormatTag, str)) {
         // If that fails, we have an unknown audio codec

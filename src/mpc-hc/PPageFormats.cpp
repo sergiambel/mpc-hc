@@ -27,7 +27,6 @@
 #include "WinAPIUtils.h"
 #include <psapi.h>
 #include <string>
-#include <atlimage.h>
 
 
 // CPPageFormats dialog
@@ -233,7 +232,7 @@ BOOL CPPageFormats::OnInitDialog()
         GetDlgItem(IDC_BUTTON5)->ShowWindow(SW_HIDE);
     }
 
-    if (SysVersion::Is8OrLater()) {
+    if (SysVersion::Is8()) {
         CRect r;
         GetDlgItem(IDC_STATIC2)->GetWindowRect(r);
         ScreenToClient(r);

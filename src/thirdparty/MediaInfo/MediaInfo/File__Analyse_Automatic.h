@@ -805,8 +805,6 @@ enum audio
     Audio_BitRate_Encoded_String,
     Audio_Channel_s_,
     Audio_Channel_s__String,
-    Audio_Channel_s__Original,
-    Audio_Channel_s__Original_String,
     Audio_ChannelPositions,
     Audio_ChannelPositions_String2,
     Audio_ChannelLayout,

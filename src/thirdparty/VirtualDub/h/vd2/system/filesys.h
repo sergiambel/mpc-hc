@@ -188,8 +188,6 @@ uint64 VDFileGetLastWriteTime(const wchar_t *path);
 VDStringW VDFileGetRootPath(const wchar_t *partialPath);
 VDStringW VDGetFullPath(const wchar_t *partialPath);
 
-extern VDStringW (*VDGetLongPath)(const wchar_t *path);
-
 VDStringW VDMakePath(const wchar_t *base, const wchar_t *file);
 bool VDFileIsPathEqual(const wchar_t *path1, const wchar_t *path2);
 void VDFileFixDirPath(VDStringW& path);
@@ -197,9 +195,6 @@ VDStringW VDGetLocalModulePath();
 VDStringW VDGetProgramPath();
 VDStringW VDGetProgramFilePath();
 VDStringW VDGetSystemPath();
-
-void VDGetRootPaths(vdvector<VDStringW>& paths);
-VDStringW VDGetRootVolumeLabel(const wchar_t *rootPath);
 
 /////////////////////////////////////////////////////////////////////////////
 

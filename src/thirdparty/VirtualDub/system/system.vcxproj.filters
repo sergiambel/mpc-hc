@@ -129,9 +129,6 @@
     <ClCompile Include="source\tls.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="source\vdalloc.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="source\VDNamespace.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -169,6 +166,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="source\vdstl_hashtable.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="linearalloc.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

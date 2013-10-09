@@ -220,7 +220,7 @@ void CWebServer::Deploy(CString dir)
     }
 
     // Create the needed folder
-    CreateDirectory(dir + _T("img"), nullptr);
+    CreateDirectory(dir + _T("img"),  nullptr);
 
     POSITION pos = m_downloads.GetStartPosition();
     while (pos) {
@@ -406,8 +406,7 @@ void CWebServer::OnRequest(CWebClientSocket* pClient, CStringA& hdr, CStringA& b
         return;
     }
 
-    /* Don't cache html, js and css files */
-    if ((mime == "text/html" || mime == "text/javascript" || mime == "text/css") && !fCGI) {
+    if ((mime == "text/html" || mime == "text/javascript") && !fCGI) {
         if (mime == "text/html") {
             hdr +=
                 "Expires: Thu, 19 Nov 1981 08:52:00 GMT\r\n"
@@ -416,7 +415,8 @@ void CWebServer::OnRequest(CWebClientSocket* pClient, CStringA& hdr, CStringA& b
 
             CStringA debug;
             if (s.fWebServerPrintDebugInfo) {
-                debug += "<br><hr><pre>\r\n";
+                debug += "<br><hr>\r\n";
+                debug += "<div id=\"debug\">";
 
                 CStringA key;
                 POSITION pos;
@@ -458,7 +458,7 @@ void CWebServer::OnRequest(CWebClientSocket* pClient, CStringA& hdr, CStringA& b
                         debug += "REQUEST[" + HtmlSpecialChars(key) + "] = " + HtmlSpecialChars(UTF8(value)) + "\r\n";
                     }
                 }
-                debug += "</pre>";
+                debug += "</div>";
             }
             body.Replace("[debug]", debug);
         }

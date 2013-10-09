@@ -13,8 +13,6 @@ public:
 	void *Allocate(size_t bytes) {
 		void *p = mpAllocPtr;
 
-		bytes = (bytes + sizeof(void *) - 1) & ((size_t)0 - (size_t)sizeof(void *));
-
 		if (mAllocLeft < bytes)
 			p = AllocateSlow(bytes);
 		else {

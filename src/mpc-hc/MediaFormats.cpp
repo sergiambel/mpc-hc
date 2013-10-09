@@ -231,6 +231,7 @@ void CMediaFormats::UpdateData(bool fSave)
         ADDFMT((_T("flic"),        ResStr(IDS_MFMT_FLIC),        _T("fli flc flic")));
         ADDFMT((_T("dsm"),         ResStr(IDS_MFMT_DSM),         _T("dsm dsv dsa dss")));
         ADDFMT((_T("ivf"),         ResStr(IDS_MFMT_IVF),         _T("ivf")));
+        ADDFMT((_T("dvd2avi"),     ResStr(IDS_MFMT_D2V),         _T("d2v")));
         ADDFMT((_T("swf"),         ResStr(IDS_MFMT_SWF),         _T("swf"), false, _T("ShockWave ActiveX control"), ShockWave));
         ADDFMT((_T("other"),       ResStr(IDS_MFMT_OTHER),       _T("divx rmvb amv")));
         ADDFMT((_T("ac3dts"),      ResStr(IDS_MFMT_AC3),         _T("ac3 dts"), true));
@@ -356,7 +357,7 @@ void CMediaFormats::GetFilter(CString& filter, CAtlArray<CString>& mask) const
 {
     CString strTemp;
 
-    filter.AppendFormat(IsExtHidden() ? _T("%s|") : _T("%s (*.avi;*.mp4;*.mkv;...)|"), ResStr(IDS_AG_MEDIAFILES));
+    filter += ResStr(IDS_AG_MEDIAFILES);
     mask.Add(_T(""));
 
     for (size_t i = 0; i < GetCount(); i++) {
@@ -384,7 +385,7 @@ void CMediaFormats::GetAudioFilter(CString& filter, CAtlArray<CString>& mask) co
 {
     CString strTemp;
 
-    filter.AppendFormat(IsExtHidden() ? _T("%s|") : _T("%s (*.mp3;*.aac;*.wav;...)|"), ResStr(IDS_AG_AUDIOFILES));
+    filter += ResStr(IDS_AG_AUDIOFILES);
     mask.Add(_T(""));
 
     for (size_t i = 0; i < GetCount(); i++) {
@@ -414,16 +415,4 @@ void CMediaFormats::GetAudioFilter(CString& filter, CAtlArray<CString>& mask) co
     mask.Add(_T("*.*"));
 
     filter += _T("|");
-}
-
-bool CMediaFormats::IsExtHidden()
-{
-    CRegKey key;
-    if (ERROR_SUCCESS == key.Open(HKEY_CURRENT_USER, _T("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced"), KEY_READ)) {
-        DWORD value;
-        if (ERROR_SUCCESS == key.QueryDWORDValue(_T("HideFileExt"), value)) {
-            return !!value;
-        }
-    }
-    return false;
 }

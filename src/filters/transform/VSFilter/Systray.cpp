@@ -65,7 +65,7 @@ LRESULT CALLBACK HookProc(UINT code, WPARAM wParam, LPARAM lParam)
     }
 
     // Always call next hook in chain
-    return CallNextHookEx(g_hHook, code, wParam, lParam);
+    return CallNextHookEx(g_hHook, code,  wParam, lParam);
 }
 
 BEGIN_MESSAGE_MAP(CSystrayWindow, CWnd)
@@ -164,7 +164,7 @@ LRESULT CSystrayWindow::OnTaskBarRestart(WPARAM, LPARAM)
         //tnid.hIcon = (HICON)LoadImage(AfxGetResourceHandle(), MAKEINTRESOURCE(IDI_ICON1), IMAGE_ICON, 0, 0, LR_LOADTRANSPARENT);
         tnid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
         tnid.uCallbackMessage = WM_NOTIFYICON;
-        _tcscpy_s(tnid.szTip, _T("VSFilter"));
+        _tcscpy_s(tnid.szTip, _T("DirectVobSub"));
 
         BOOL res = Shell_NotifyIcon(NIM_ADD, &tnid);
 

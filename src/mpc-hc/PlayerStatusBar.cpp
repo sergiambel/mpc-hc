@@ -210,12 +210,15 @@ void CPlayerStatusBar::SetStatusTimer(CString str)
     Relayout();
 }
 
-void CPlayerStatusBar::SetStatusTimer(REFERENCE_TIME rtNow, REFERENCE_TIME rtDur, bool fHighPrecision, const GUID& timeFormat/* = TIME_FORMAT_MEDIA_TIME*/)
+void CPlayerStatusBar::SetStatusTimer(REFERENCE_TIME rtNow, REFERENCE_TIME rtDur, bool fHighPrecision, const GUID* pTimeFormat)
 {
+    ASSERT(pTimeFormat);
+    ASSERT(rtNow >= 0 && (rtNow <= rtDur || rtDur <= 0));
+
     CString str;
     CString posstr, durstr, rstr;
 
-    if (timeFormat == TIME_FORMAT_MEDIA_TIME) {
+    if (*pTimeFormat == TIME_FORMAT_MEDIA_TIME) {
         DVD_HMSF_TIMECODE tcNow, tcDur, tcRt;
 
         if (fHighPrecision) {
@@ -247,7 +250,7 @@ void CPlayerStatusBar::SetStatusTimer(REFERENCE_TIME rtNow, REFERENCE_TIME rtDur
             durstr.AppendFormat(_T(".%03d"), int((rtDur / 10000) % 1000));
             rstr.AppendFormat(_T(".%03d"), int(((rtDur - rtNow) / 10000) % 1000));
         }
-    } else if (timeFormat == TIME_FORMAT_FRAME) {
+    } else if (*pTimeFormat == TIME_FORMAT_FRAME) {
         posstr.Format(_T("%I64d"), rtNow);
         durstr.Format(_T("%I64d"), rtDur);
         rstr.Format(_T("%I64d"), rtDur - rtNow);

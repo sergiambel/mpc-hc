@@ -112,7 +112,6 @@ public:
     void SavePlaylist();
 
     bool SelectFileInPlaylist(LPCTSTR filename);
-    bool DeleteFileInPlaylist(POSITION pos, bool recycle = true);
 
 protected:
     virtual BOOL PreCreateWindow(CREATESTRUCT& cs);

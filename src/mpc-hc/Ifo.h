@@ -20,7 +20,12 @@
 
 #pragma once
 
+// TODO: remove this when it's fixed in MSVC
+// Work around warning C4005: 'XXXX' : macro redefinition
+#pragma warning(push)
+#pragma warning(disable: 4005)
 #include <stdint.h>
+#pragma warning(pop)
 
 #pragma pack(push, 1)
 

@@ -59,11 +59,10 @@ enum {
     CLSW_HELP = CLSW_NEW << 1,
     CLSW_DVD = CLSW_HELP << 1,
     CLSW_CD = CLSW_DVD << 1,
-    CLSW_DEVICE = CLSW_CD << 1,
-    CLSW_ADD = CLSW_DEVICE << 1,
+    CLSW_ADD = CLSW_CD << 1,
     CLSW_MINIMIZED = CLSW_ADD << 1,
-    CLSW_REGEXTVID = CLSW_MINIMIZED << 1,   // 16
-    CLSW_REGEXTAUD = CLSW_REGEXTVID << 1,
+    CLSW_REGEXTVID = CLSW_MINIMIZED << 1,
+    CLSW_REGEXTAUD = CLSW_REGEXTVID << 1,   // 16
     CLSW_REGEXTPL = CLSW_REGEXTAUD << 1,
     CLSW_UNREGEXT = CLSW_REGEXTPL << 1,
     CLSW_ICONSASSOC = CLSW_UNREGEXT << 1,
@@ -76,7 +75,7 @@ enum {
     CLSW_SLAVE = CLSW_ADMINOPTION << 1,
     CLSW_AUDIORENDERER = CLSW_SLAVE << 1,
     CLSW_RESET = CLSW_AUDIORENDERER << 1,
-    CLSW_UNRECOGNIZEDSWITCH = CLSW_RESET << 1 // 30
+    CLSW_UNRECOGNIZEDSWITCH = CLSW_RESET << 1 // 29
 };
 
 enum {
@@ -440,6 +439,7 @@ public:
     bool            fUseDVDPath;
     CString         strDVDPath;
     LCID            idMenuLang, idAudioLang, idSubtitlesLang;
+    bool            fAutoSpeakerConf;
     bool            fClosedCaptions;
 
     // Output
@@ -485,6 +485,8 @@ public:
     // Internal Filters
     bool            SrcFilters[SRC_LAST + !SRC_LAST];
     bool            TraFilters[TRA_LAST + !TRA_LAST];
+    bool            DXVAFilters[TRA_DXVA_LAST + !TRA_DXVA_LAST];
+    bool            FFmpegFilters[FFM_LAST + !FFM_LAST];
 
     // Audio Switcher
     bool            fEnableAudioSwitcher;
@@ -508,7 +510,7 @@ public:
     int             nSubDelayInterval;
 
     // Default Style
-    STSStyle        subtitlesDefStyle;
+    STSStyle        subdefstyle;
 
     // Misc
     bool            bPreferDefaultForcedSubtitles;
@@ -522,8 +524,7 @@ public:
     int             nJumpDistS;
     int             nJumpDistM;
     int             nJumpDistL;
-    bool            bFastSeek;
-    enum { FASTSEEK_LATEST_KEYFRAME, FASTSEEK_NEAREST_KEYFRAME } eFastSeekMethod;
+    bool            fFastSeek;
     bool            fShowChapters;
     bool            bNotifySkype;
     bool            fPreventMinimize;
@@ -610,11 +611,12 @@ public:
 
     bool            IsD3DFullscreen() const;
     CString         SelectedAudioRenderer() const;
-    bool            IsISREnabled() const;
 
 private:
     CString         SrcFiltersKeys[SRC_LAST + !SRC_LAST];
     CString         TraFiltersKeys[TRA_LAST + !TRA_LAST];
+    CString         DXVAFiltersKeys[TRA_DXVA_LAST + !TRA_DXVA_LAST];
+    CString         FFMFiltersKeys[FFM_LAST + !FFM_LAST];
 
     __int64         ConvertTimeToMSec(const CString& time) const;
     void            ExtractDVDStartPos(CString& strParam);

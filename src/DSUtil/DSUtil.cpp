@@ -33,7 +33,98 @@
 #include <d3d9types.h>
 #include <dxva.h>
 #include <dxva2api.h>
-#include <intrin.h>
+
+void DumpStreamConfig(const TCHAR* fn, IAMStreamConfig* pAMVSCCap)
+{
+    CString s;
+    CStdioFile f;
+    if (!f.Open(fn, CFile::modeCreate | CFile::modeWrite | CFile::typeText)) {
+        return;
+    }
+
+    int cnt = 0, size = 0;
+    if (FAILED(pAMVSCCap->GetNumberOfCapabilities(&cnt, &size))) {
+        return;
+    }
+
+    s.Format(_T("cnt %d, size %d\n"), cnt, size);
+    f.WriteString(s);
+
+    if (size == sizeof(VIDEO_STREAM_CONFIG_CAPS)) {
+        for (int i = 0; i < cnt; i++) {
+            AM_MEDIA_TYPE* pmt = nullptr;
+
+            VIDEO_STREAM_CONFIG_CAPS caps;
+            ZeroMemory(&caps, sizeof(caps));
+
+            s.Format(_T("%d\n"), i);
+            f.WriteString(s);
+
+            if (FAILED(pAMVSCCap->GetStreamCaps(i, &pmt, (BYTE*)&caps))) {
+                continue;
+            }
+
+            {
+                s = _T("VIDEO_STREAM_CONFIG_CAPS\n");
+                s.AppendFormat(_T("\tVideoStandard 0x%08x\n"), caps.VideoStandard);
+                s.AppendFormat(_T("\tInputSize %dx%d\n"), caps.InputSize.cx, caps.InputSize.cy);
+                s.AppendFormat(_T("\tCroppingSize %dx%d - %dx%d\n"), caps.MinCroppingSize.cx, caps.MinCroppingSize.cy,
+                               caps.MaxCroppingSize.cx, caps.MaxCroppingSize.cy);
+                s.AppendFormat(_T("\tCropGranularity %d, %d\n"), caps.CropGranularityX, caps.CropGranularityY);
+                s.AppendFormat(_T("\tCropAlign %d, %d\n"), caps.CropAlignX, caps.CropAlignY);
+                s.AppendFormat(_T("\tOutputSize %dx%d - %dx%d\n"), caps.MinOutputSize.cx, caps.MinOutputSize.cy,
+                               caps.MaxOutputSize.cx, caps.MaxOutputSize.cy);
+                s.AppendFormat(_T("\tOutputGranularity %d, %d\n"), caps.OutputGranularityX, caps.OutputGranularityY);
+                s.AppendFormat(_T("\tStretchTaps %d, %d\n"), caps.StretchTapsX, caps.StretchTapsY);
+                s.AppendFormat(_T("\tShrinkTaps %d, %d\n"), caps.ShrinkTapsX, caps.ShrinkTapsY);
+                s.AppendFormat(_T("\tFrameInterval %I64d, %I64d (%.4f, %.4f)\n"),
+                               caps.MinFrameInterval, caps.MaxFrameInterval,
+                               10000000.0f / caps.MinFrameInterval, 10000000.0f / caps.MaxFrameInterval);
+                s.AppendFormat(_T("\tBitsPerSecond %d - %d\n"), caps.MinBitsPerSecond, caps.MaxBitsPerSecond);
+                f.WriteString(s);
+            }
+
+            BITMAPINFOHEADER* pbh;
+            if (pmt->formattype == FORMAT_VideoInfo) {
+                VIDEOINFOHEADER* vih = (VIDEOINFOHEADER*)pmt->pbFormat;
+                pbh = &vih->bmiHeader;
+
+                s = _T("FORMAT_VideoInfo\n");
+                s.AppendFormat(_T("\tAvgTimePerFrame %I64d, %.4f\n"), vih->AvgTimePerFrame, 10000000.0f / vih->AvgTimePerFrame);
+                s.AppendFormat(_T("\trcSource %d,%d,%d,%d\n"), vih->rcSource.left, vih->rcSource.top, vih->rcSource.right, vih->rcSource.bottom);
+                s.AppendFormat(_T("\trcTarget %d,%d,%d,%d\n"), vih->rcTarget.left, vih->rcTarget.top, vih->rcTarget.right, vih->rcTarget.bottom);
+                f.WriteString(s);
+            } else if (pmt->formattype == FORMAT_VideoInfo2) {
+                VIDEOINFOHEADER2* vih = (VIDEOINFOHEADER2*)pmt->pbFormat;
+                pbh = &vih->bmiHeader;
+
+                s  = _T("FORMAT_VideoInfo2\n");
+                s.AppendFormat(_T("\tAvgTimePerFrame %I64d, %.4f\n"), vih->AvgTimePerFrame, 10000000.0f / vih->AvgTimePerFrame);
+                s.AppendFormat(_T("\trcSource %d,%d,%d,%d\n"), vih->rcSource.left, vih->rcSource.top, vih->rcSource.right, vih->rcSource.bottom);
+                s.AppendFormat(_T("\trcTarget %d,%d,%d,%d\n"), vih->rcTarget.left, vih->rcTarget.top, vih->rcTarget.right, vih->rcTarget.bottom);
+                s.AppendFormat(_T("\tdwInterlaceFlags 0x%x\n"), vih->dwInterlaceFlags);
+                s.AppendFormat(_T("\tdwPictAspectRatio %u:%u\n"), vih->dwPictAspectRatioX, vih->dwPictAspectRatioY);
+                f.WriteString(s);
+            } else {
+                DeleteMediaType(pmt);
+                continue;
+            }
+
+            s = _T("BITMAPINFOHEADER\n");
+            s.AppendFormat(_T("\tbiCompression %x\n"), pbh->biCompression);
+            s.AppendFormat(_T("\tbiWidth %d\n"), pbh->biWidth);
+            s.AppendFormat(_T("\tbiHeight %d\n"), pbh->biHeight);
+            s.AppendFormat(_T("\tbiBitCount %u\n"), pbh->biBitCount);
+            s.AppendFormat(_T("\tbiPlanes %u\n"), pbh->biPlanes);
+            s.AppendFormat(_T("\tbiSizeImage %u\n"), pbh->biSizeImage);
+            f.WriteString(s);
+
+            DeleteMediaType(pmt);
+        }
+    } else if (size == sizeof(AUDIO_STREAM_CONFIG_CAPS)) {
+        // TODO
+    }
+}
 
 int CountPins(IBaseFilter* pBF, int& nIn, int& nOut, int& nInC, int& nOutC)
 {
@@ -645,37 +736,6 @@ bool IsCLSIDRegistered(const CLSID& clsid)
     return fRet;
 }
 
-CString GetFilterPath(LPCTSTR clsid)
-{
-    CString rootkey1(_T("CLSID\\"));
-    CString rootkey2(_T("CLSID\\{083863F1-70DE-11d0-BD40-00A0C911CE86}\\Instance\\"));
-
-    CRegKey key;
-    CString path;
-
-    if (ERROR_SUCCESS == key.Open(HKEY_CLASSES_ROOT, rootkey1 + clsid + _T("\\InprocServer32"), KEY_READ)
-            || ERROR_SUCCESS == key.Open(HKEY_CLASSES_ROOT, rootkey2 + clsid + _T("\\InprocServer32"), KEY_READ)) {
-        ULONG nCount = MAX_PATH;
-        key.QueryStringValue(NULL, path.GetBuffer(nCount), &nCount);
-        path.ReleaseBuffer(nCount);
-    }
-
-    return path;
-}
-
-CString GetFilterPath(const CLSID& clsid)
-{
-    CString path;
-
-    LPOLESTR pStr = NULL;
-    if (S_OK == StringFromCLSID(clsid, &pStr) && pStr) {
-        path = GetFilterPath(CString(pStr));
-        CoTaskMemFree(pStr);
-    }
-
-    return path;
-}
-
 void CStringToBin(CString str, CAtlArray<BYTE>& data)
 {
     str.Trim();
@@ -745,7 +805,7 @@ static void FindFiles(CString fn, CAtlList<CString>& files)
     }
 }
 
-OpticalDiskType_t GetOpticalDiskType(TCHAR drive, CAtlList<CString>& files)
+cdrom_t GetCDROMType(TCHAR drive, CAtlList<CString>& files)
 {
     files.RemoveAll();
 
@@ -753,18 +813,6 @@ OpticalDiskType_t GetOpticalDiskType(TCHAR drive, CAtlList<CString>& files)
     path.Format(_T("%c:"), drive);
 
     if (GetDriveType(path + _T("\\")) == DRIVE_CDROM) {
-        // CDROM_DVDVideo
-        FindFiles(path + _T("\\VIDEO_TS\\video_ts.ifo"), files);
-        if (!files.IsEmpty()) {
-            return OpticalDisk_DVDVideo;
-        }
-
-        // CDROM_BD
-        FindFiles(path + _T("\\BDMV\\index.bdmv"), files);
-        if (!files.IsEmpty()) {
-            return OpticalDisk_BD;
-        }
-
         // CDROM_VideoCD
         FindFiles(path + _T("\\mpegav\\avseq??.dat"), files);
         FindFiles(path + _T("\\mpegav\\avseq??.mpg"), files);
@@ -775,7 +823,13 @@ OpticalDiskType_t GetOpticalDiskType(TCHAR drive, CAtlList<CString>& files)
         FindFiles(path + _T("\\mpeg2\\music??.dat"), files);
         FindFiles(path + _T("\\mpeg2\\music??.mpg"), files);
         if (!files.IsEmpty()) {
-            return OpticalDisk_VideoCD;
+            return CDROM_VideoCD;
+        }
+
+        // CDROM_DVDVideo
+        FindFiles(path + _T("\\VIDEO_TS\\video_ts.ifo"), files);
+        if (!files.IsEmpty()) {
+            return CDROM_DVDVideo;
         }
 
         // CDROM_Audio
@@ -799,14 +853,14 @@ OpticalDiskType_t GetOpticalDiskType(TCHAR drive, CAtlList<CString>& files)
             CloseHandle(hDrive);
         }
         if (!files.IsEmpty()) {
-            return OpticalDisk_Audio;
+            return CDROM_Audio;
         }
 
         // it is a cdrom but nothing special
-        return OpticalDisk_Unknown;
+        return CDROM_Unknown;
     }
 
-    return OpticalDisk_NotFound;
+    return CDROM_NotFound;
 }
 
 CString GetDriveLabel(TCHAR drive)
@@ -886,7 +940,7 @@ DVD_HMSF_TIMECODE RT2HMSF(REFERENCE_TIME rt, double fps) // use to remember the 
     return hmsf;
 }
 
-DVD_HMSF_TIMECODE RT2HMS_r(REFERENCE_TIME rt) // used only for information (for display on the screen)
+DVD_HMSF_TIMECODE RT2HMS_r(REFERENCE_TIME rt) // use only for information (for display on the screen)
 {
     rt = (rt + 5000000) / 10000000;
     DVD_HMSF_TIMECODE hmsf = {
@@ -910,15 +964,20 @@ REFERENCE_TIME HMSF2RT(DVD_HMSF_TIMECODE hmsf, double fps)
 
 void memsetd(void* dst, unsigned int c, size_t nbytes)
 {
-    size_t n = nbytes / 4;
-
 #ifndef _WIN64
-    if (!(g_cpuid.m_flags & g_cpuid.sse2)) { // No SSE2
-        __stosd((unsigned long*)dst, c, n);
+    if (!(g_cpuid.m_flags & g_cpuid.sse2)) {
+        __asm {
+            mov eax, c
+            mov ecx, nbytes
+            shr ecx, 2
+            mov edi, dst
+            cld
+            rep stosd
+        }
         return;
     }
 #endif
-
+    size_t n = nbytes / 4;
     size_t o = n - (n % 4);
 
     __m128i val = _mm_set1_epi32((int)c);
@@ -934,11 +993,11 @@ void memsetd(void* dst, unsigned int c, size_t nbytes)
 
     switch (n - o) {
         case 3:
-            ((DWORD*)dst)[o + 2] = c;
+                ((DWORD*)dst)[o + 2] = c;
         case 2:
-            ((DWORD*)dst)[o + 1] = c;
+                ((DWORD*)dst)[o + 1] = c;
         case 1:
-            ((DWORD*)dst)[o + 0] = c;
+                ((DWORD*)dst)[o + 0] = c;
     }
 }
 
@@ -1088,6 +1147,76 @@ bool ExtractDim(const AM_MEDIA_TYPE* pmt, int& w, int& h, int& arx, int& ary)
     return true;
 }
 
+bool MakeMPEG2MediaType(CMediaType& mt, BYTE* seqhdr, DWORD len, int w, int h)
+{
+    if (len < 4 || *(DWORD*)seqhdr != 0xb3010000) {
+        mt = CMediaType();
+
+        mt.majortype = MEDIATYPE_Video;
+        mt.subtype = MEDIASUBTYPE_MPEG2_VIDEO;
+        mt.formattype = FORMAT_MPEG2Video;
+
+        MPEG2VIDEOINFO* vih = (MPEG2VIDEOINFO*)mt.AllocFormatBuffer(FIELD_OFFSET(MPEG2VIDEOINFO, dwSequenceHeader));
+        ZeroMemory(mt.Format(), mt.FormatLength());
+        vih->hdr.bmiHeader.biSize = sizeof(vih->hdr.bmiHeader);
+        vih->hdr.bmiHeader.biWidth = w;
+        vih->hdr.bmiHeader.biHeight = h;
+
+        vih->cbSequenceHeader = 0;
+
+        return true;
+    }
+
+    BYTE* seqhdr_ext = nullptr;
+
+    BYTE* seqhdr_end = seqhdr + 7;
+
+    while (seqhdr_end < (seqhdr + len - 6)) {
+        if (*(DWORD*)seqhdr_end == 0xb5010000) {
+            seqhdr_ext = seqhdr_end;
+            seqhdr_end += 10;
+            len = (DWORD)(seqhdr_end - seqhdr);
+            break;
+        }
+        seqhdr_end++;
+    }
+
+    mt = CMediaType();
+
+    mt.majortype = MEDIATYPE_Video;
+    mt.subtype = MEDIASUBTYPE_MPEG2_VIDEO;
+    mt.formattype = FORMAT_MPEG2Video;
+
+    MPEG2VIDEOINFO* vih = (MPEG2VIDEOINFO*)mt.AllocFormatBuffer(FIELD_OFFSET(MPEG2VIDEOINFO, dwSequenceHeader) + len);
+    ZeroMemory(mt.Format(), mt.FormatLength());
+    vih->hdr.bmiHeader.biSize = sizeof(vih->hdr.bmiHeader);
+    vih->hdr.bmiHeader.biWidth = w;
+    vih->hdr.bmiHeader.biHeight = h;
+
+    BYTE* pSequenceHeader = (BYTE*)vih->dwSequenceHeader;
+    memcpy(pSequenceHeader, seqhdr, len);
+    vih->cbSequenceHeader = len;
+
+    static char profile[8] = {
+        0, AM_MPEG2Profile_High, AM_MPEG2Profile_SpatiallyScalable, AM_MPEG2Profile_SNRScalable,
+        AM_MPEG2Profile_Main, AM_MPEG2Profile_Simple, 0, 0
+    };
+
+    static char level[16] = {
+        0, 0, 0, 0,
+        AM_MPEG2Level_High, 0, AM_MPEG2Level_High1440, 0,
+        AM_MPEG2Level_Main, 0, AM_MPEG2Level_Low, 0,
+        0, 0, 0, 0
+    };
+
+    if (seqhdr_ext && (seqhdr_ext[4] & 0xf0) == 0x10) {
+        vih->dwProfile = profile[seqhdr_ext[4] & 0x07];
+        vih->dwLevel = level[seqhdr_ext[5] >> 4];
+    }
+
+    return true;
+}
+
 bool CreateFilter(CStringW DisplayName, IBaseFilter** ppBF, CStringW& FriendlyName)
 {
     if (!ppBF) {
@@ -1194,37 +1323,29 @@ CStringW GetFriendlyName(CStringW displayName)
     return friendlyName;
 }
 
-typedef HRESULT(__stdcall* fDllCanUnloadNow)(void);
-
 typedef struct {
     CString path;
     HINSTANCE hInst;
     CLSID clsid;
-    fDllCanUnloadNow fpDllCanUnloadNow;
-    bool bUnloadOnNextCheck;
 } ExternalObject;
 
-static CAtlList<ExternalObject> s_extObjs;
-static CCritSec s_csExtObjs;
+static CAtlList<ExternalObject> s_extobjs;
 
 HRESULT LoadExternalObject(LPCTSTR path, REFCLSID clsid, REFIID iid, void** ppv)
 {
     CheckPointer(ppv, E_POINTER);
-
-    CAutoLock lock(&s_csExtObjs);
 
     CString fullpath = MakeFullPath(path);
 
     HINSTANCE hInst = nullptr;
     bool fFound = false;
 
-    POSITION pos = s_extObjs.GetHeadPosition();
+    POSITION pos = s_extobjs.GetHeadPosition();
     while (pos) {
-        ExternalObject& eo = s_extObjs.GetNext(pos);
+        ExternalObject& eo = s_extobjs.GetNext(pos);
         if (!eo.path.CompareNoCase(fullpath)) {
             hInst = eo.hInst;
             fFound = true;
-            eo.bUnloadOnNextCheck = false;
             break;
         }
     }
@@ -1232,7 +1353,7 @@ HRESULT LoadExternalObject(LPCTSTR path, REFCLSID clsid, REFIID iid, void** ppv)
     HRESULT hr = E_FAIL;
 
     if (!hInst) {
-        hInst = LoadLibraryEx(fullpath, nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+        hInst = CoLoadLibrary(CComBSTR(fullpath), TRUE);
     }
     if (hInst) {
         typedef HRESULT(__stdcall * PDllGetClassObject)(REFCLSID rclsid, REFIID riid, LPVOID * ppv);
@@ -1247,7 +1368,7 @@ HRESULT LoadExternalObject(LPCTSTR path, REFCLSID clsid, REFIID iid, void** ppv)
     }
 
     if (FAILED(hr) && hInst && !fFound) {
-        FreeLibrary(hInst);
+        CoFreeLibrary(hInst);
         return hr;
     }
 
@@ -1256,9 +1377,7 @@ HRESULT LoadExternalObject(LPCTSTR path, REFCLSID clsid, REFIID iid, void** ppv)
         eo.path = fullpath;
         eo.hInst = hInst;
         eo.clsid = clsid;
-        eo.fpDllCanUnloadNow = (fDllCanUnloadNow)GetProcAddress(hInst, "DllCanUnloadNow");
-        eo.bUnloadOnNextCheck = false;
-        s_extObjs.AddTail(eo);
+        s_extobjs.AddTail(eo);
     }
 
     return hr;
@@ -1271,16 +1390,14 @@ HRESULT LoadExternalFilter(LPCTSTR path, REFCLSID clsid, IBaseFilter** ppBF)
 
 HRESULT LoadExternalPropertyPage(IPersist* pP, REFCLSID clsid, IPropertyPage** ppPP)
 {
-    CAutoLock lock(&s_csExtObjs);
-
     CLSID clsid2 = GUID_NULL;
     if (FAILED(pP->GetClassID(&clsid2))) {
         return E_FAIL;
     }
 
-    POSITION pos = s_extObjs.GetHeadPosition();
+    POSITION pos = s_extobjs.GetHeadPosition();
     while (pos) {
-        ExternalObject& eo = s_extObjs.GetNext(pos);
+        ExternalObject& eo = s_extobjs.GetNext(pos);
         if (eo.clsid == clsid2) {
             return LoadExternalObject(eo.path, clsid, __uuidof(IPropertyPage), (void**)ppPP);
         }
@@ -1289,31 +1406,14 @@ HRESULT LoadExternalPropertyPage(IPersist* pP, REFCLSID clsid, IPropertyPage** p
     return E_FAIL;
 }
 
-bool UnloadUnusedExternalObjects()
+void UnloadExternalObjects()
 {
-    CAutoLock lock(&s_csExtObjs);
-
-    POSITION pos = s_extObjs.GetHeadPosition(), currentPos;
+    POSITION pos = s_extobjs.GetHeadPosition();
     while (pos) {
-        currentPos = pos;
-        ExternalObject& eo = s_extObjs.GetNext(pos);
-
-        if (eo.fpDllCanUnloadNow && eo.fpDllCanUnloadNow() == S_OK) {
-            // Before actually unloading it, we require that the library reports
-            // that it can be unloaded safely twice in a row with a 60s delay
-            // between the two checks.
-            if (eo.bUnloadOnNextCheck) {
-                FreeLibrary(eo.hInst);
-                s_extObjs.RemoveAt(currentPos);
-            } else {
-                eo.bUnloadOnNextCheck = true;
-            }
-        } else {
-            eo.bUnloadOnNextCheck = false;
-        }
+        ExternalObject& eo = s_extobjs.GetNext(pos);
+        CoFreeLibrary(eo.hInst);
     }
-
-    return s_extObjs.IsEmpty();
+    s_extobjs.RemoveAll();
 }
 
 CString MakeFullPath(LPCTSTR path)
@@ -1357,8 +1457,8 @@ CString GetMediaTypeName(const GUID& guid)
         ret = str;
     } else if (ret == _T("Unknown GUID Name")) {
         WCHAR null[128] = {0}, buff[128];
-        StringFromGUID2(GUID_NULL, null, _countof(null) - 1);
-        ret = CString(CStringW(StringFromGUID2(guid, buff, _countof(buff) - 1) ? buff : null));
+        StringFromGUID2(GUID_NULL, null, 127);
+        ret = CString(CStringW(StringFromGUID2(guid, buff, 127) ? buff : null));
     }
 
     return ret;
@@ -1382,8 +1482,8 @@ HRESULT GUIDFromCString(CString str, GUID& guid)
 CString CStringFromGUID(const GUID& guid)
 {
     WCHAR null[128] = {0}, buff[128];
-    StringFromGUID2(GUID_NULL, null, _countof(null) - 1);
-    return CString(StringFromGUID2(guid, buff, _countof(buff) - 1) > 0 ? buff : null);
+    StringFromGUID2(GUID_NULL, null, 127);
+    return CString(StringFromGUID2(guid, buff, 127) > 0 ? buff : null);
 }
 
 CStringW UTF8To16(LPCSTR utf8)
@@ -2016,7 +2116,7 @@ CString ISO6391ToLanguage(LPCSTR code)
     strncpy_s(tmp, code, 2);
     tmp[2] = 0;
     _strlwr_s(tmp);
-    for (size_t i = 0, cnt = _countof(s_isolangs); i < cnt; i++) {
+    for (ptrdiff_t i = 0, j = _countof(s_isolangs); i < j; i++) {
         if (!strcmp(s_isolangs[i].iso6391, tmp)) {
             CString ret = CString(CStringA(s_isolangs[i].name));
             int k = ret.Find(';');
@@ -2035,7 +2135,7 @@ CString ISO6392ToLanguage(LPCSTR code)
     strncpy_s(tmp, code, 3);
     tmp[3] = 0;
     _strlwr_s(tmp);
-    for (size_t i = 0, cnt = _countof(s_isolangs); i < cnt; i++) {
+    for (ptrdiff_t i = 0, j = _countof(s_isolangs); i < j; i++) {
         if (!strcmp(s_isolangs[i].iso6392, tmp)) {
             CString ret = CString(CStringA(s_isolangs[i].name));
             int k = ret.Find(';');
@@ -2048,59 +2148,13 @@ CString ISO6392ToLanguage(LPCSTR code)
     return CString(code);
 }
 
-bool IsISO639Language(LPCSTR code)
-{
-    size_t nLen = strlen(code) + 1;
-    LPSTR tmp = DEBUG_NEW CHAR[nLen];
-    strncpy_s(tmp, nLen, code, nLen);
-    _strlwr_s(tmp, nLen);
-    tmp[0] = toupper(tmp[0]);
-
-    bool bFound = false;
-    for (size_t i = 0, cnt = _countof(s_isolangs); i < cnt; i++) {
-        if (!strcmp(s_isolangs[i].name, tmp)) {
-            bFound = true;
-            break;
-        }
-    }
-
-    delete [] tmp;
-
-    return bFound;
-}
-
-CString ISO639XToLanguage(LPCSTR code, bool bCheckForFullLangName /*= false*/)
-{
-    CString lang;
-
-    switch (size_t nLen = strlen(code)) {
-        case 2:
-            lang = ISO6391ToLanguage(code);
-            break;
-        case 3:
-            lang = ISO6392ToLanguage(code);
-            if (lang == code) { // When it can't find a match, ISO6392ToLanguage returns the input string
-                lang.Empty();
-            }
-            break;
-        default:
-            if (bCheckForFullLangName && nLen > 3) {
-                if (IsISO639Language(code)) {
-                    lang = code;
-                }
-            }
-    }
-
-    return lang;
-}
-
 LCID ISO6391ToLcid(LPCSTR code)
 {
     CHAR tmp[3 + 1];
     strncpy_s(tmp, code, 3);
     tmp[3] = 0;
     _strlwr_s(tmp);
-    for (size_t i = 0, cnt = _countof(s_isolangs); i < cnt; i++) {
+    for (ptrdiff_t i = 0, j = _countof(s_isolangs); i < j; i++) {
         if (!strcmp(s_isolangs[i].iso6391, code)) {
             return s_isolangs[i].lcid;
         }
@@ -2114,7 +2168,7 @@ LCID ISO6392ToLcid(LPCSTR code)
     strncpy_s(tmp, code, 3);
     tmp[3] = 0;
     _strlwr_s(tmp);
-    for (size_t i = 0, cnt = _countof(s_isolangs); i < cnt; i++) {
+    for (ptrdiff_t i = 0, j = _countof(s_isolangs); i < j; i++) {
         if (!strcmp(s_isolangs[i].iso6392, tmp)) {
             return s_isolangs[i].lcid;
         }
@@ -2128,7 +2182,7 @@ CString ISO6391To6392(LPCSTR code)
     strncpy_s(tmp, code, 2);
     tmp[2] = 0;
     _strlwr_s(tmp);
-    for (size_t i = 0, cnt = _countof(s_isolangs); i < cnt; i++) {
+    for (ptrdiff_t i = 0, j = _countof(s_isolangs); i < j; i++) {
         if (!strcmp(s_isolangs[i].iso6391, tmp)) {
             return CString(CStringA(s_isolangs[i].iso6392));
         }
@@ -2142,7 +2196,7 @@ CString ISO6392To6391(LPCSTR code)
     strncpy_s(tmp, code, 3);
     tmp[3] = 0;
     _strlwr_s(tmp);
-    for (size_t i = 0, cnt = _countof(s_isolangs); i < cnt; i++) {
+    for (ptrdiff_t i = 0, j = _countof(s_isolangs); i < j; i++) {
         if (!strcmp(s_isolangs[i].iso6392, tmp)) {
             return CString(CStringA(s_isolangs[i].iso6391));
         }
@@ -2154,7 +2208,7 @@ CString LanguageToISO6392(LPCTSTR lang)
 {
     CString str = lang;
     str.MakeLower();
-    for (size_t i = 0, cnt = _countof(s_isolangs); i < cnt; i++) {
+    for (ptrdiff_t i = 0, j = _countof(s_isolangs); i < j; i++) {
         CAtlList<CString> sl;
         Explode(CString(s_isolangs[i].name), sl, ';');
         POSITION pos = sl.GetHeadPosition();
@@ -2435,6 +2489,36 @@ LPCTSTR GetDXVAMode(const GUID* guidDecoder)
     return DXVA2Decoder[nPos].Description;
 }
 
+void DumpBuffer(const BYTE* pBuffer, int nSize)
+{
+    CString strMsg;
+    int nPos = 0;
+    strMsg.AppendFormat(L"Size : %d\n", nSize);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 32; j++) {
+            nPos = i * 32 + j;
+            if (nPos >= nSize) {
+                break;
+            }
+            strMsg.AppendFormat(L"%02x ", pBuffer[nPos]);
+        }
+        if (nPos >= nSize) {
+            break;
+        }
+        strMsg.Append(L"\n");
+    }
+
+    if (nSize > 32 * 3) {
+        strMsg.Append(L".../...\n");
+        for (int j = 32; j > 0; j--) {
+            strMsg.AppendFormat(L"%02x ", pBuffer[nSize - j]);
+        }
+    }
+    strMsg.AppendFormat(L"\n");
+
+    TRACE(strMsg);
+}
+
 // hour, minute, second, millisec
 CString ReftimeToString(const REFERENCE_TIME& rtVal)
 {
@@ -2537,45 +2621,83 @@ DWORD YCrCbToRGB_Rec709(BYTE A, BYTE Y, BYTE Cr, BYTE Cb)
     return D3DCOLOR_ARGB(A, (BYTE)fabs(rp), (BYTE)fabs(gp), (BYTE)fabs(bp));
 }
 
+void TraceFilterInfo(IBaseFilter* pBF)
+{
+    FILTER_INFO Info;
+    if (SUCCEEDED(pBF->QueryFilterInfo(&Info))) {
+        TRACE(_T(" === Filter info : %s\n"), Info.achName);
+        BeginEnumPins(pBF, pEnum, pPin) {
+            TracePinInfo(pPin);
+        }
+
+        EndEnumPins;
+        Info.pGraph->Release();
+    }
+}
+
+void TracePinInfo(IPin* pPin)
+{
+    PIN_INFO      PinInfo;
+    FILTER_INFO   ConnectedFilterInfo;
+    PIN_INFO      ConnectedInfo;
+    CComPtr<IPin> pConnected;
+
+    ZeroMemory(&ConnectedInfo, sizeof(ConnectedInfo));
+    ZeroMemory(&ConnectedFilterInfo, sizeof(ConnectedFilterInfo));
+    if (SUCCEEDED(pPin->ConnectedTo(&pConnected))) {
+        pConnected->QueryPinInfo(&ConnectedInfo);
+        ConnectedInfo.pFilter->QueryFilterInfo(&ConnectedFilterInfo);
+        ConnectedInfo.pFilter->Release();
+        ConnectedFilterInfo.pGraph->Release();
+    }
+    pPin->QueryPinInfo(&PinInfo);
+    TRACE(_T("      %s (%s) -> %s (Filter %s)\n"),
+          PinInfo.achName,
+          PinInfo.dir == PINDIR_OUTPUT ? _T("Out") : _T("In"),
+          ConnectedInfo.achName,
+          ConnectedFilterInfo.achName);
+    PinInfo.pFilter->Release();
+}
+
 const wchar_t* StreamTypeToName(PES_STREAM_TYPE _Type)
 {
     switch (_Type) {
         case VIDEO_STREAM_MPEG1:
-            return L"MPEG-1";
+                return L"MPEG-1";
         case VIDEO_STREAM_MPEG2:
-            return L"MPEG-2";
+                return L"MPEG-2";
         case AUDIO_STREAM_MPEG1:
-            return L"MPEG-1";
+                return L"MPEG-1";
         case AUDIO_STREAM_MPEG2:
-            return L"MPEG-2";
+                return L"MPEG-2";
         case VIDEO_STREAM_H264:
-            return L"H264";
+                return L"H264";
         case AUDIO_STREAM_LPCM:
-            return L"LPCM";
+                return L"LPCM";
         case AUDIO_STREAM_AC3:
-            return L"Dolby Digital";
+                return L"Dolby Digital";
         case AUDIO_STREAM_DTS:
-            return L"DTS";
+                return L"DTS";
         case AUDIO_STREAM_AC3_TRUE_HD:
-            return L"Dolby TrueHD";
+                return L"Dolby TrueHD";
         case AUDIO_STREAM_AC3_PLUS:
-            return L"Dolby Digital Plus";
+                return L"Dolby Digital Plus";
         case AUDIO_STREAM_DTS_HD:
-            return L"DTS-HD High Resolution Audio";
+                return L"DTS-HD High Resolution Audio";
         case AUDIO_STREAM_DTS_HD_MASTER_AUDIO:
-            return L"DTS-HD Master Audio";
+                return L"DTS-HD Master Audio";
         case PRESENTATION_GRAPHICS_STREAM:
-            return L"Presentation Graphics Stream";
+                return L"Presentation Graphics Stream";
         case INTERACTIVE_GRAPHICS_STREAM:
-            return L"Interactive Graphics Stream";
+                return L"Interactive Graphics Stream";
         case SUBTITLE_STREAM:
-            return L"Subtitle";
+                return L"Subtitle";
         case SECONDARY_AUDIO_AC3_PLUS:
-            return L"Secondary Dolby Digital Plus";
+                return L"Secondary Dolby Digital Plus";
         case SECONDARY_AUDIO_DTS_HD:
-            return L"Secondary DTS-HD High Resolution Audio";
+                return L"Secondary DTS-HD High Resolution Audio";
         case VIDEO_STREAM_VC1:
-            return L"VC-1";
+                return L"VC-1";
     }
     return nullptr;
 }
@@ -2601,6 +2723,52 @@ void SetThreadName(DWORD dwThreadID, LPCSTR szThreadName)
     __try {
         RaiseException(0x406D1388, 0, sizeof(info) / sizeof(DWORD), (ULONG_PTR*)&info);
     } __except (EXCEPTION_CONTINUE_EXECUTION) {
+    }
+}
+
+void HexDump(CString fileName, const BYTE* buf, int size)
+{
+    if (size <= 0) {
+        return;
+    }
+
+    CString dump_str;
+    dump_str.Format(_T("Dump size = %d\n"), size);
+    int i, j, c;
+
+    for (i = 0; i < size; i += 16) {
+        int len = size - i;
+        if (len > 16) {
+            len = 16;
+        }
+        dump_str.AppendFormat(_T("%08x "), i);
+        for (j = 0; j < 16; j++) {
+            if (j < len) {
+                dump_str.AppendFormat(_T(" %02x"), buf[i + j]);
+            } else {
+                dump_str.Append(_T("   "));
+            }
+        }
+        dump_str.Append(_T(" "));
+        for (j = 0; j < len; j++) {
+            c = buf[i + j];
+            if (c < ' ' || c > '~') {
+                c = '.';
+            }
+            dump_str.AppendFormat(_T("%c"), c);
+        }
+        dump_str.Append(_T("\n"));
+    }
+    dump_str.Append(_T("\n"));
+
+    if (!fileName.IsEmpty()) {
+        CStdioFile file;
+        if (file.Open(fileName, CFile::modeCreate | CFile::modeWrite)) {
+            file.WriteString(dump_str);
+            file.Close();
+        }
+    } else {
+        TRACE(dump_str);
     }
 }
 
@@ -2648,4 +2816,117 @@ void CorrectComboListWidth(CComboBox& m_pComboBox)
 
     // Set the width of the list box so that every item is completely visible.
     m_pComboBox.SetDroppedWidth(dx);
+}
+
+unsigned int lav_xiphlacing(unsigned char* s, unsigned int v)
+{
+    unsigned int n = 0;
+
+    while (v >= 0xff) {
+        *s++ = 0xff;
+        v -= 0xff;
+        n++;
+    }
+    *s = v;
+    n++;
+    return n;
+}
+
+void getExtraData(const BYTE* format, const GUID* formattype, const size_t formatlen, BYTE* extra, unsigned int* extralen)
+{
+    // code from LAV ...
+    const BYTE* extraposition = nullptr;
+    size_t extralength = 0;
+    if (*formattype == FORMAT_WaveFormatEx) {
+        //WAVEFORMATEX *wfex = (WAVEFORMATEX *)format;
+        extraposition = format + sizeof(WAVEFORMATEX);
+        // Protected against over-reads
+        extralength = formatlen - sizeof(WAVEFORMATEX);
+    } else if (*formattype == FORMAT_VorbisFormat2) {
+        VORBISFORMAT2* vf2 = (VORBISFORMAT2*)format;
+        unsigned offset = 1;
+        if (extra) {
+            *extra = 2;
+            offset += lav_xiphlacing(extra + offset, vf2->HeaderSize[0]);
+            offset += lav_xiphlacing(extra + offset, vf2->HeaderSize[1]);
+            extra += offset;
+        } else {
+            offset += vf2->HeaderSize[0] / 255 + 1;
+            offset += vf2->HeaderSize[1] / 255 + 1;
+        }
+        extralength = vf2->HeaderSize[0] + vf2->HeaderSize[1] + vf2->HeaderSize[2];
+        extralength = min(extralength, formatlen - sizeof(VORBISFORMAT2));
+
+        if (extra && extralength) {
+            memcpy(extra, format + sizeof(VORBISFORMAT2), extralength);
+        }
+        if (extralen) {
+            *extralen = (unsigned int)extralength + offset;
+        }
+
+        return;
+    } else if (*formattype == FORMAT_VideoInfo) {
+        extraposition = format + sizeof(VIDEOINFOHEADER);
+        extralength = formatlen - sizeof(VIDEOINFOHEADER);
+    } else if (*formattype == FORMAT_VideoInfo2) {
+        extraposition = format + sizeof(VIDEOINFOHEADER2);
+        extralength = formatlen - sizeof(VIDEOINFOHEADER2);
+    } else if (*formattype == FORMAT_MPEGVideo) {
+        MPEG1VIDEOINFO* mp1vi = (MPEG1VIDEOINFO*)format;
+        extraposition = (BYTE*)mp1vi->bSequenceHeader;
+        extralength = min(mp1vi->cbSequenceHeader, formatlen - FIELD_OFFSET(MPEG1VIDEOINFO, bSequenceHeader[0]));
+    } else if (*formattype == FORMAT_MPEG2Video) {
+        MPEG2VIDEOINFO* mp2vi = (MPEG2VIDEOINFO*)format;
+        extraposition = (BYTE*)mp2vi->dwSequenceHeader;
+        extralength = min(mp2vi->cbSequenceHeader, formatlen - FIELD_OFFSET(MPEG2VIDEOINFO, dwSequenceHeader[0]));
+    }
+
+    if (extra && extralength) {
+        memcpy(extra, extraposition, extralength);
+    }
+    if (extralen) {
+        *extralen = (unsigned int)extralength;
+    }
+}
+
+void audioFormatTypeHandler(const BYTE* format, const GUID* formattype,
+                            DWORD* pnSamples, WORD* pnChannels,
+                            WORD* pnBitsPerSample, WORD* pnBlockAlign,
+                            DWORD* pnBytesPerSec)
+{
+    DWORD nSamples       = 0;
+    WORD  nChannels      = 0;
+    WORD  nBitsPerSample = 0;
+    WORD  nBlockAlign    = 0;
+    DWORD nBytesPerSec   = 0;
+
+    if (*formattype == FORMAT_WaveFormatEx) {
+        WAVEFORMATEX* wfex = (WAVEFORMATEX*)format;
+        nSamples       = wfex->nSamplesPerSec;
+        nChannels      = wfex->nChannels;
+        nBitsPerSample = wfex->wBitsPerSample;
+        nBlockAlign    = wfex->nBlockAlign;
+        nBytesPerSec   = wfex->nAvgBytesPerSec;
+    } else if (*formattype == FORMAT_VorbisFormat2) {
+        VORBISFORMAT2* vf2 = (VORBISFORMAT2*)format;
+        nSamples       = vf2->SamplesPerSec;
+        nChannels      = (WORD)vf2->Channels;
+        nBitsPerSample = (WORD)vf2->BitsPerSample;
+    }
+
+    if (pnSamples) {
+        *pnSamples = nSamples;
+    }
+    if (pnChannels) {
+        *pnChannels = nChannels;
+    }
+    if (pnBitsPerSample) {
+        *pnBitsPerSample = nBitsPerSample;
+    }
+    if (pnBlockAlign) {
+        *pnBlockAlign = nBlockAlign;
+    }
+    if (pnBytesPerSec) {
+        *pnBytesPerSec = nBytesPerSec;
+    }
 }
