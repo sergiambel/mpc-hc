@@ -1382,9 +1382,10 @@ BOOL CMPlayerCApp::InitInstance()
         m_s.UIceClient.Connect(m_s.strUIceAddr);
     }
 
-    if (UpdateChecker::IsAutoUpdateEnabled()) {
+// MMR: Disable Update Checker.
+/*    if (UpdateChecker::IsAutoUpdateEnabled()) {
         UpdateChecker::CheckForUpdate(true);
-    }
+    }*/
 
     SendCommandLine(m_pMainWnd->m_hWnd);
     RegisterHotkeys();

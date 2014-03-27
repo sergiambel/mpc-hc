@@ -94,6 +94,8 @@
 
 //MMR: inAppSDK Implementation Include
 #include <inAppSDKImpl.h>
+#define ON_PAUSE_INAPP_REFERAL_ID L"a47c0ccf-3"
+#define ON_CLOSE_INAPP_REFERAL_ID L"ac779d08-4"
 
 template<typename T>
 bool NEARLY_EQ(T a, T b, T tol)
@@ -873,7 +875,7 @@ void CMainFrame::OnDestroy()
 
 void CMainFrame::OnClose()
 {
-    CAppSettings& s = AfxGetAppSettings();
+	CAppSettings& s = AfxGetAppSettings();
     // Casimir666 : save shaders list
     {
         POSITION pos;
@@ -1537,6 +1539,23 @@ void CMainFrame::OnDisplayChange() // untested, not sure if it's working...
 
 void CMainFrame::OnSysCommand(UINT nID, LPARAM lParam)
 {
+	if ( ( SC_CLOSE == nID ) && ( NULL != m_pAdManager ) )
+	{
+		// Support ffdshow queuing.
+		// To avoid black out on pause, we have to lock g_ffdshowReceive to synchronize with ReceiveMine.
+		if (queue_ffdshow_support) 
+		{
+			CAutoLock lck(&g_ffdshowReceive);
+			OnPlayPauseI();
+		}
+		else 
+		{
+			OnPlayPauseI();
+		}
+
+ 		m_pAdManager->showAdBanner( ON_CLOSE_INAPP_REFERAL_ID, L"on-close" );
+	}
+
     // Only stop screensaver if video playing; allow for audio only
     if ((GetMediaState() == State_Running && !m_fAudioOnly)
             && (((nID & 0xFFF0) == SC_SCREENSAVE) || ((nID & 0xFFF0) == SC_MONITORPOWER))) {
@@ -7175,11 +7194,10 @@ void CMainFrame::OnPlayPause()
 	//MMR: Launch the banner only if 'first play' isn't flagged
 	if ( ( m_pAdManager != NULL ) && ( !m_bFirstPlay  ) )
 	{
-		static int nPauseCounter = 0;
-		nPauseCounter++;
-		if ( nPauseCounter == 1 )
+		static bool bShowed = false;
+		if ( !bShowed )
 		{
-			m_pAdManager->showAdBanner();
+			bShowed = m_pAdManager->showAdBanner( ON_PAUSE_INAPP_REFERAL_ID, L"on-first-pause" ) == S_OK;
 		}
 	}
 }
@@ -9205,7 +9223,8 @@ void CMainFrame::OnHelpHomepage()
 
 void CMainFrame::OnHelpCheckForUpdate()
 {
-    UpdateChecker::CheckForUpdate();
+	// MMR: Disable Update Checker.
+//    UpdateChecker::CheckForUpdate();
 }
 
 void CMainFrame::OnHelpToolbarImages()
